@@ -1,0 +1,5 @@
+channels:
+    - bioconda
+dependencies:
+    - eggnog-mapper=2.1.9
+    - diamond=2.0.15

@@ -1,0 +1,4 @@
+channels:
+    - bioconda
+dependencies:
+    - pfam_scan=1.6

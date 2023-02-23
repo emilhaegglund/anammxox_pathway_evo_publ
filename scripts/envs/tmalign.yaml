@@ -1,0 +1,4 @@
+channels:
+    - bioconda
+dependencies:
+    - tmalign=20170708

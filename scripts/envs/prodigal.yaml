@@ -1,0 +1,4 @@
+channel:
+    - bioconda
+dependencies:
+    - prodigal=2.6.3

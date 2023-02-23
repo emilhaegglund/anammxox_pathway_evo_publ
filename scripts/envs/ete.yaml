@@ -1,0 +1,9 @@
+channels:
+    - bioconda
+    - conda-forge
+    - default
+dependencies:
+    - python=3.8
+    - ete3=3.1.1
+    - pandas
+    - biopython=1.79
