@@ -27,17 +27,14 @@ df = pd.read_csv(
     compression="gzip",
 )
 if sys.argv[3] == "hzs_bc":
-    df = df[df["qseqid"].isin(["GAX62881.1", "CAJ73611.1", "CAJ73612.1"])]
+    df = df[df["qseqid"].isin(["GAX62881.1", "SOH05198.1", "SOH05199.1"])]
 elif sys.argv[3] == "hzs_a":
-    df = df[df["qseqid"].isin(["GAX62882.1", "CAJ73613.1"])]
+    df = df[df["qseqid"].isin(["GAX62882.1", "SOH05200.1"])]
 else:
     sys.exit()
 
 # Remove bad hits
 df = df[df["bitscore"] >= 80]
-
-# Remove hits to proteins within Anammox
-df = df[df["class"] != "Brocadiae"]
 
 # Dictionary to store results from Uniprot
 results = {"accession": [], "alphafold_url": []}

@@ -1,193 +1,480 @@
-backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hzs-outside-anammox"
-results = "../processed_data/hzs-outside-anammox"
-
+backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hzs-outside-anammox/"
+results = "../processed_data/hzs-outside-anammox/"
+SUBUNITS = ["hzs_a", "hzs_bc"]
 rule all:
     input:
-        #results + "/hzs.test.gtdb.tsv.gz"
-        #results + "/hzs.gtdb.w_taxa.tsv.gz",
-        #backup_dir + "/hzs.co-occuring.tsv",
-        #backup_dir + "/hzs.co-localized.tsv",
-        #results + "/hzs_a.co-localized.faa",
-        #results + "/hzs_a.co-occuring.w_query.trimal.treefile",
-        #results + "/hzs_a.co-occuring.w_query.trimal.fasttree",
-        #results + "/hzs_bc.co-occuring.w_query.trimal.treefile",
-        #results + "/hzs_a.co-occuring.w_query.trimal.aln",
-        #results + "/hzs_a.co-occuring.w_query.dmnd",
-        #expand(backup_dir + "/hzs_{subunit}.co-occuring.network.tsv", subunit=["a","bc"]),
-        expand(results + "/{subunit}.cxxch.tsv", subunit=["hzs_a", "hzs_bc"]),
-        expand(results + "/{subunit}.gtdb.hits.clustered.aln", subunit=["hzs_a", "hzs_bc"])
+        results + "hzs.gtdb.w_taxa.tsv.gz",
+        expand(results + "{subunit}.gtdb.refseq.hits.trimal.fasttree", subunit=SUBUNITS),
+        expand(results + "{subunit}.gtdb.refseq.hits.gap_remove_1.trimal.fasttree", subunit=SUBUNITS),
+        expand(results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.fasttree", subunit=SUBUNITS),
+        expand(results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.mad_root.treefile", subunit=SUBUNITS),
+        expand(results + "{subunit}.blast.structure.genome.heme.annotation.tsv", subunit=SUBUNITS),
+        expand(results + "{subunit}.gtdb.hits.faa", subunit=SUBUNITS),
+        results + "hzs_bc.sister_group.anammox.aln",
+        results + "hzs.blast.summary.svg",
+        results + "hzs_bc_refseqs_proteomes.faa",
+        results + "hzs_bc_refseqs_proteomes.hzs_a_domanin.filtered.tsv",
 
 rule download_queries:
+    "Download HZS-B, HZS-C, and HZS-A from Kuenenia stuttgartiensis and HZS-BC and HZS-A from Scalinduae japonica"
     output:
-        results + "/query.faa"
+        results + "query.faa"
     conda:
         "envs/entrez.yaml"
     shell:
-        "efetch -id QII12198.1,QII12199.1,QII12200.1,GAX62881.1,GAX62882.1,OHC04732.1 -db protein -format fasta > {output}"
+        "efetch -id SOH05198.1,SOH05199.1,SOH05200.1,GAX62881.1,GAX62882.1 -db protein -format fasta > {output}"
 
 rule blast_gtdb:
+    "Search for homologous proteins among the representative species in GTDB v207"
     input:
-        results + "/query.faa"
+        results + "query.faa"
     output:
-        results + "/hzs.gtdb.tsv.gz"
+        results + "hzs.gtdb.tsv.gz"
     params:
         db="../data/gtdb_representatives_database/gtdb_representatives.dmnd"
     conda:
         "envs/diamond.yaml"
     threads:
-        24
+        32
     shell:
         """
         diamond blastp --db {params.db} \
             --query {input} \
             --outfmt 6 qseqid sseqid pident positive mismatch gapopen qlen slen length qstart qend sstart send evalue bitscore stitle full_sseq \
             --out {output} \
-            --ultra-sensitive \
+            --very-sensitive \
             --max-target-seqs 5000 \
-            --evalue 1e-6 \
-            --query-cover 50 \
-            --subject-cover 50 \
+            --min-score 80 \
             --compress 1 \
-            --threads {threads}
-        """
-
-rule blast_gtdb_test:
-    input:
-        results + "/query.faa"
-    output:
-        results + "/hzs.test.gtdb.tsv.gz"
-    params:
-        db="../data/gtdb_representatives_database/gtdb_representatives.dmnd"
-    conda:
-        "envs/diamond.yaml"
-    threads:
-        24
-    shell:
-        """
-        diamond blastp --db {params.db} \
-            --query {input} \
-            --outfmt 6 qseqid sseqid pident positive mismatch gapopen qlen slen length qstart qend sstart send evalue bitscore stitle full_sseq \
-            --out {output} \
-            --ultra-sensitive \
-            --max-target-seqs 5000 \
-            --evalue 1e-6 \
-            --compress 1 \
-            --threads {threads}
+            --threads {threads} \
         """
 
 rule add_accessions:
+    "Add the accession number of the assembly for each of the identified proteins"
     input:
-        blast=results + "/hzs.gtdb.tsv.gz",
+        blast=results + "hzs.gtdb.tsv.gz",
         prot="../data/gtdb_representatives_database/prot2accession.tsv.gz"
     output:
-        results + "/hzs.gtdb.w_accessions.tsv.gz"
+        results + "hzs.gtdb.w_accessions.tsv.gz"
     shell:
         "python hzs-outside-anammox-merge-blast-accessions.py {input.blast} {input.prot} {output}"
 
 rule add_taxa:
+    "Add taxonomic information for each of the identified proteins"
     input:
-        blast=results + "/hzs.gtdb.w_accessions.tsv.gz",
+        blast=results + "hzs.gtdb.w_accessions.tsv.gz",
         gtdb="../data/gtdb_representatives_database/gtdb_representatives.sample_gtdb.metadata.tsv",
     output:
-        results + "/hzs.gtdb.w_taxa.tsv.gz"
+        results + "hzs.gtdb.w_taxa.tsv.gz"
     shell:
         "python hzs-outside-anammox-merge-blast-taxa.py {input.blast} {input.gtdb} {output}"
 
-rule hzs_co_occuring:
+rule plot_summary_blast_results:
+    "Plot a summary of the blast results. Presented in supplementary figure X"
     input:
-        results + "/hzs.gtdb.w_taxa.tsv.gz"
+        results + "hzs.gtdb.w_taxa.tsv.gz"
     output:
-        co_occuring = results + "/hzs.co-occuring.tsv",
-        co_localized = results + "/hzs.co-localized.tsv",
+        results + "hzs.blast.summary.svg"
     shell:
-        "python hzs-outside-anammox-find-colocalized.py {input} {output.co_occuring} {output.co_localized}"
+        "python plot_blast_results_distribution.py {input} {output}"
 
-rule hzs_a_queries:
+# Prepare phylogeny from RefSeq homologs
+rule extract_hzs_a_refseq_sequences:
+    """Extract protein sequence for all hits to HZS-A for entries derived from
+    RefSeq"""
     input:
-        query = results + "/query.faa"
+        blast=results + "hzs.gtdb.w_taxa.tsv.gz"
     output:
-        results + "/query_hzs_a.faa"
-    conda:
-        "envs/seqtk.yaml"
+        results + "hzs_a.gtdb.refseq.no_anammox.hits.faa"
     shell:
-        """
-        echo "GAX62882.1,QII12200.1" | tr "," "\\n" | seqtk subseq {input} - > {output}
+        """python extract-blast-hits.py --blast {input.blast} \
+            --fasta {output} \
+            --queries SOH05200.1,GAX62882.1 \
+            --scover 0.5 \
+            --qcover 0.5 \
+            --source refseq
         """
 
-rule hzs_bc_queries:
+rule extract_hzs_bc_refseq_sequences:
+    """Extract protein sequence for all hits to HZS-BC, HZS-B, and HZS-C for
+    entries derived from RefSeq."""
     input:
-        query = results + "/query.faa"
+        blast=results + "hzs.gtdb.w_taxa.tsv.gz"
     output:
-        results + "/query_hzs_bc.faa"
-    conda:
-        "envs/seqtk.yaml"
+        results + "hzs_bc.gtdb.refseq.no_anammox.hits.faa"
     shell:
+        """python extract-blast-hits.py --blast {input.blast} \
+            --fasta {output} \
+            --queries SOH05198.1,SOH05199.1,GAX62881.1 \
+            --scover 0.5 \
+            --qcover 0.5 \
+            --source refseq
         """
-        echo "GAX62881.1,QII12198.1,QII12199.1" | tr "," "\\n" | seqtk subseq {input} - > {output}
-        """
-rule extract_all_hzs_hits:
-    input:
-        results + "/hzs.gtdb.w_taxa.tsv.gz"
-    output:
-        results + "/{subunit}.gtdb.hits.faa"
-    params:
-        subunit = "{subunit}"
-    shell:
-        "python hzs-outside-anammox-extract-all.py {input} {params.subunit} > {output}"
 
-rule cluster_hits:
+rule merge_anammox_and_no_anammox_refseqs:
+    """Protein sequence for HZS-A, HZS-B, and HZS-C for anammox sequences from
+    the HQ-dataset is located in the data folder. For B and C the sequences have
+    been manually fused. Only one copy for each of the species have been
+    included. Merge the anammox protein sequences with the protein sequences
+    for the RefSeq hits."""
     input:
-        results + "/{subunit}.gtdb.hits.faa"
+        no_anammox=results + "{subunit}.gtdb.refseq.no_anammox.hits.faa",
+        anammox="../data/hzs-outside-anammox/{subunit}.faa"
     output:
-        results + "/{subunit}.gtdb.hits.clustered.faa"
-    conda:
-        "envs/cd-hit.yaml"
+        results + "{subunit}.gtdb.refseq.hits.faa"
     shell:
-       "cd-hit -i {input} -o {output} -c 0.8"
+        "cat {input.anammox} {input.no_anammox} > {output}"
 
-rule align_all_hzs_hits:
+rule align_refseqs:
+    "Align the sequences using mafft."
     input:
-        results + "/{subunit}.gtdb.hits.clustered.faa"
+        results + "{subunit}.gtdb.refseq.hits.faa"
     output:
-        results + "/{subunit}.gtdb.hits.clustered.aln"
+        results + "{subunit}.gtdb.refseq.hits.aln"
     conda:
         "./envs/mafft.yaml"
     threads:
         12
     shell:
-        "mafft-linsi --thread {threads} {input} > {output}"        
-    
+        "mafft-linsi --reorder --thread {threads} {input} > {output}"
 
-rule get_hit_accessions:
+rule trim_refseqs:
+    "Trim the aligment using TrimAl."
     input:
-        results + "/hzs.gtdb.w_taxa.tsv.gz"
+        results + "{subunit}.gtdb.refseq.hits.aln"
     output:
-        results + "/{subunit}.gtdb.hits.accessions"
-    params: 
+        results + "{subunit}.gtdb.refseq.hits.trimal.aln"
+    conda:
+        "./envs/trimal.yaml"
+    threads:
+        12
+    shell:
+        "trimal -automated1 -keepheader -in {input} -out {output}"
+
+rule fasttree_refseqs:
+    "Run FastTree to get first overview of data."
+    input:
+        results + "{subunit}.gtdb.refseq.hits.trimal.aln"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.trimal.fasttree"
+    conda:
+        "./envs/fasttree.yaml"
+    shell:
+        "fasttree -lg {input} > {output}"
+
+rule remove_gappy_sequences_refseqs_1:
+    input:
+        aln=results + "{subunit}.gtdb.refseq.hits.trimal.aln",
+        seq=results + "{subunit}.gtdb.refseq.hits.faa"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.gap_remove_1.faa"
+    conda:
+        "./envs/biopython.yaml"
+    shell:
+        "python remove_more_50_gaps.py {input.aln} {input.seq} {output}"
+
+rule align_refseqs_after_gap_remove_1:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.gap_remove_1.faa"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.gap_remove_1.aln"
+    conda:
+        "./envs/mafft.yaml"
+    threads:
+        12
+    shell:
+        "mafft-linsi --reorder --thread {threads} {input} > {output}"
+
+rule trim_refseqs_after_gap_remove_1:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.gap_remove_1.aln"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.gap_remove_1.trimal.aln"
+    conda:
+        "./envs/trimal.yaml"
+    threads:
+        12
+    shell:
+        "trimal -automated1 -keepheader -in {input} -out {output}"
+
+rule fasttree_refseqs_after_gap_remove_1:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.gap_remove_1.trimal.aln"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.gap_remove_1.trimal.fasttree"
+    conda:
+        "./envs/fasttree.yaml"
+    shell:
+        "fasttree -lg {input} > {output}"
+
+rule remove_long_branches:
+    input:
+        sequences=results + "{subunit}.gtdb.refseq.hits.gap_remove_1.faa",
+        accessions="../data/hzs-outside-anammox/{subunit}.long_branches.accessions.txt"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.faa"
+    conda:
+        "./envs/biopython.yaml"
+    shell:
+        "python rpoB-phylogeny-remove-taxa.py {input.sequences} {input.accessions} {output}"
+
+rule align_refseqs_after_remove_long_branches:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.faa"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.aln"
+    conda:
+        "./envs/mafft.yaml"
+    threads:
+        12
+    shell:
+        "mafft-linsi --reorder --thread {threads} {input} > {output}"
+
+rule trim_refseqs_after_remove_long_branches:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.aln"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.aln"
+    conda:
+        "./envs/trimal.yaml"
+    threads:
+        12
+    shell:
+        "trimal -automated1 -keepheader -in {input} -out {output}"
+
+rule fasttree_refseqs_after_remove_long_branches:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.aln"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.fasttree"
+    conda:
+        "./envs/fasttree.yaml"
+    shell:
+        "fasttree -lg {input} > {output}"
+
+rule iqtree_refseqs:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.aln"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.treefile"
+    conda:
+        "envs/iqtree.yaml"
+    params:
+        pre=results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal"
+    threads:
+        12
+    shell:
+        "iqtree2 -s {input} -mset LG,WAG -alrt 1000 -B 1000 -nt {threads} -pre {params.pre} -redo"
+
+rule mad_root:
+    input:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.treefile"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.remove_long_branches.trimal.mad_root.treefile"
+    shell:
+        "../bin/MADroot/madRoot {input} > {output}"
+
+# Align only Brocadiae and sister group
+rule extract_sister_group:
+    input:
+        accessions="../data/hzs-outside-anammox/hzs_bc.sister_group.accessions.txt",
+        sequences=results + "hzs_bc.gtdb.refseq.hits.faa"
+    output:
+        results + "hzs_bc.sister_group.faa"
+    conda:
+        "./envs/seqtk.yaml"
+    shell:
+        "seqtk subseq {input.sequences} {input.accessions} > {output}"
+
+rule merge_sister_group_anammox:
+    input:
+        sister_group=results + "hzs_bc.sister_group.faa",
+        anammox="../data/hzs-outside-anammox/hzs_bc.faa"
+    output:
+        results + "hzs_bc.sister_group.anammox.faa"
+    shell:
+        "cat {input.sister_group} {input.anammox} > {output}"
+
+rule align_anammox_sister_group:
+    input:
+        results + "hzs_bc.sister_group.anammox.faa"
+    output:
+        results + "hzs_bc.sister_group.anammox.aln"
+    conda:
+        "./envs/mafft.yaml"
+    shell:
+        "mafft-linsi --reorder {input} > {output}"
+
+# Phylogeny based on clustering of refseqs
+rule cluster_refseqs:
+    input:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.faa"
+    output:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.faa"
+    conda:
+        "./envs/cd-hit.yaml"
+    shell:
+        "cd-hit -i {input} -o {output} -c 0.9"
+
+rule align_cluster_refseqs:
+    input:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.faa"
+    output:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.aln"
+    conda:
+        "./envs/mafft.yaml"
+    threads:
+        12
+    shell:
+        "mafft-linsi --reorder --thread {threads} {input} > {output}"
+
+rule trim_clustered_refseqs:
+    input:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.aln"
+    output:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.trimal.aln"
+    conda:
+        "./envs/trimal.yaml"
+    shell:
+        "trimal -automated1 -in {input} -out {output}"
+
+rule iqtree_clustered_refseqs:
+    input:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.trimal.aln"
+    output:
+        results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.trimal.treefile"
+    conda:
+        "envs/iqtree.yaml"
+    params:
+        pre=results + "/{subunit}.gtdb.refseq.hits.gap_remove_1.clustered.trimal"
+    threads:
+        12
+    shell:
+        "iqtree2 -s {input} -mset LG -bb 1000 -nt {threads} -pre {params.pre} -redo"
+
+# Download GBFF for comparative analysis of the Refseqs. The following steps
+# download proteomes and GBK files for all proteomes in RefSeq with a hit to the
+# HZS-BC subunit. Since HZS-A is less conserved compared to HZS-BC we search the
+# proteomes for the HZS-A middle domain using hmmsearch. The GBKs is also used
+# to plot the genome structure around the HZS-BC homologs.
+rule extract_refseq_accessions:
+    input:
+        results + "{subunit}.blast.structure.genome.tsv"
+    output:
+        results + "{subunit}.gtdb.refseq.hits.accessions.txt"
+    params:
+        subunit="{subunit}"
+    shell:
+        "python extract_refseq_accession.py {input} {params.subunit} > {output}"
+
+# The following was run outside the Snakemake workflow.
+#rule download_refseq_gbff:
+#    input:
+#        results + "{subunit}.gtdb.refseq.hits.accessions.txt"
+#    output:
+#        results + "{subunit}.refseq.gbff.zip"
+#    conda:
+#        "./envs/ncbi-datasets.yaml"
+#    shell:
+#        "datasets download genome accession --inputfile {input} --filename {output} --include gbff,protein"
+
+rule unzip_refseq_gbff:
+    input:
+        results + "{subunit}.refseq.gbff.zip"
+    output:
+        directory(results + "{subunit}_refseqs_gbff")
+    shell:
+        "unzip {input} -d {output}"
+
+rule concat_refseqs:
+    input:
+        results + "{subunit}_refseqs_gbff"
+    output:
+        results + "{subunit}_refseqs_proteomes.faa"
+    shell:
+        "cat {input}/ncbi_dataset/data/*/*.faa > {output}"
+
+rule search_hzs_a_domain:
+    input:
+        proteomes=results + "hzs_bc_refseqs_proteomes.faa",
+        hmm="../data/hzs-outside-anammox/PF18582.1.hmm"
+    output:
+        tbl=results + "hzs_bc_refseqs_proteomes.hzs_a_domanin.tsv",
+        txt=results + "hzs_bc_refseqs_proteomes.hzs_a_domanin.txt"
+    threads:
+        12
+    conda:
+        "./envs/hmmer.yaml"
+    shell:
+        "hmmsearch --tblout {output.tbl} --noali -o {output.txt}  --cpu {threads} {input.hmm} {input.proteomes}"
+
+rule extract_hzs_a_domain_proteins:
+    input:
+        results + "hzs_bc_refseqs_proteomes.hzs_a_domanin.tsv",
+    output:
+        results + "hzs_bc_refseqs_proteomes.hzs_a_domanin.filtered.tsv"
+    shell:
+        "python parse-hzs-a-hmmsearch.py {input} > {output}"
+
+# Based on the HMM-search of the HZS-A middle domain, proteins with this domain
+# was also identified in close proximity to the HZS-BC protein in Maribacter also.
+# In the followin steps, those proteins are extracted and added to the HZS-A
+# alignment and a new phylogeny is calculated.
+#rule extract_maribacter_hzs_a:
+#    input:
+#
+#    output:
+#        results + "hzs_a.refseq.hq_anammox.maribacter.faa"
+
+#    shell:
+
+#rule add_maribacter_hzs_a:
+
+#rule align_hzs_a:
+#    input:
+#        results + "hzs_a.refseq.hq_anammox.maribacter.faa"
+#    output:
+#        results + "hzs_a.refseq.hq_anammox.maribacter.aln"
+#rule trim_hzs_a:
+#
+#rule iqtree_hzs_a:
+# Plot Overview of HZS-BC-operon for anammox and sister group
+#rule extract_hzs_bs
+#    input:
+#        proteins=
+#    output:
+#        results + "/"
+#    shell:
+#        "python  .py {input.genbanks} {input.proteins} > {output}"
+# Extract all hits
+
+rule extract_all_hits:
+    input:
+        results + "hzs.gtdb.w_taxa.tsv.gz"
+    output:
+        results + "{subunit}.gtdb.hits.faa"
+    params:
         subunit = "{subunit}"
     shell:
-        "python hzs-outside-anammox-extract-accessions.py {input} {params.subunit} > {output}" 
+        "python hzs-no-masking-extract-hits.py {input} {params.subunit} all all > {output}"
 
-rule get_hit_genome_info:
-    input:
-        results + "/{subunit}.gtdb.hits.accessions"
-    output:
-        results + "/{subunit}.gtdb.hits.genome_info.tsv"
-    conda:
-        "./envs/ncbi-datasets.yaml"
-    shell:
-        """
-        datasets summary genome accession --inputfile {input} --as-json-lines | \
-        dataformat tsv genome > {output}
-        """
+#rule run_interpro:
+#    input:
+#        results + "/{subunit}.gtdb.hits.faa"
+#    output:
+#        results + "/{subunit}.gtdb.hits.interpro.tsv"
+#    shell:
+#        "interproscan.sh -i {input} -o {output} -f TSV -cpu 12
 
+
+# Create master table
 rule merge_blast_and_structure:
     input:
-        blast=results+"/hzs.gtdb.w_taxa.tsv.gz",
-        structure_alignment="../processed_data/hzs-structure-alignment/alignment_summary.tsv",
-        structure_map="../processed_data/hzs-structure-alignment/{subunit}_alphafold_identifiers.tsv"
+        blast=results+"hzs.gtdb.w_taxa.tsv.gz",
+        structure_alignment="../processed_data/hzs-structure-alignment-no-masking/alignment_summary.tsv",
+        structure_map="../processed_data/hzs-structure-alignment-no-masking/{subunit}_alphafold_identifiers.tsv"
     output:
-        results+"/{subunit}.blast.structure.tsv"
+        results+"{subunit}.blast.structure.tsv"
     params:
         subunit="{subunit}"
     shell:
@@ -195,237 +482,41 @@ rule merge_blast_and_structure:
 
 rule add_MAG_info:
     input:
-        table="/{subunit}.blast.structure.tsv"
-        genome_info=results + "/{subunit}.gtdb.hits.genome_info.tsv"
+        table=results+"{subunit}.blast.structure.tsv",
+        genome_info="../data/gtdb_representatives_database/gtdb_representatives.sample_gtdb.metadata.tsv"
     output:
-        results + "/{subunit}.blast.structure.genome.tsv"
+        results + "{subunit}.blast.structure.genome.tsv"
     shell:
-        "python add_MAG_info.py {input.table} {input.genome_info} {output}
+        "python add_MAG_info.py {input.table} {input.genome_info} {output}"
 
-    
-
-rule extract_co_occuring_hzs_a:
-    """
-    Extract hits to HZS-A from species that also have a hit to HZS-BC
-    """
+rule add_interpro_info:
     input:
-        results + "/hzs.co-occuring.tsv"
+        table=results + "{subunit}.blast.structure.genome.heme.tsv",
+        interpro=results + "{subunit}.interproscan.tsv"
     output:
-        results + "/hzs_a.co-occuring.faa"
+        results + "{subunit}.blast.structure.genome.heme.interpro.tsv"
     shell:
-        "python hzs-outside-anammox-extract-hzs-a.py {input} > {output}"
+        "python add_interpro_info.py {input.interpro} {input.table} {output}"
 
-rule extract_co_occuring_hzs_bc:
-    """
-    Extract hits to HZS-BC from species that also have a hit to HZS-BC
-    """
+rule add_heme_info:
     input:
-        results + "/hzs.co-occuring.tsv"
+        sequences=results+"{subunit}.gtdb.hits.faa",
+        table=results+"{subunit}.blast.structure.genome.tsv",
     output:
-        results + "/hzs_bc.co-occuring.faa"
-    shell:
-        "python hzs-outside-anammox-extract-hzs-bc.py {input} > {output}"
-
-rule merge_co_occuring_hzs_a_w_query:
-    input:
-        hzs_a = results + "/hzs_a.co-occuring.faa",
-        query = results + "/query_hzs_a.faa"
-    output:
-        results + "/hzs_a.co-occuring.w_query.faa"
-    shell:
-        "cat {input.hzs_a} {input.query} > {output}"
-
-rule merge_co_occuring_hzs_bc_w_query:
-    input:
-        hzs_bc = results + "/hzs_bc.co-occuring.faa",
-        query = results + "/query_hzs_bc.faa"
-    output:
-        results + "/hzs_bc.co-occuring.w_query.faa"
-    shell:
-        "cat {input.hzs_bc} {input.query} > {output}"
-
-rule align_co_occuring_hzs_a:
-    input:
-        results + "/hzs_a.co-occuring.w_query.faa"
-    output:
-        results + "/hzs_a.co-occuring.w_query.aln"
-    conda:
-        "envs/mafft.yaml"
-    threads:
-        12
-    shell:
-        "mafft-linsi --reorder --thread {threads} {input} > {output}"
-
-rule align_co_occuring_hzs_bc:
-    input:
-        results + "/hzs_bc.co-occuring.w_query.faa"
-    output:
-        results + "/hzs_bc.co-occuring.w_query.aln"
-    conda:
-        "envs/mafft.yaml"
-    threads:
-        12
-    shell:
-        "mafft-linsi --reorder --thread {threads} {input} > {output}"
-
-rule trim_co_occuring_hzs_a_alignment:
-    input:
-        results + "/hzs_a.co-occuring.w_query.aln"
-    output:
-        results + "/hzs_a.co-occuring.w_query.trimal.aln"
-    conda:
-        "envs/trimal.yaml"
-    shell:
-        "trimal -gt 0.5 -in {input} -out {output}"
-
-rule trim_co_occuring_hzs_bc_alignment:
-    input:
-        results + "/hzs_bc.co-occuring.w_query.aln"
-    output:
-        results + "/hzs_bc.co-occuring.w_query.trimal.aln"
-    conda:
-        "envs/trimal.yaml"
-    shell:
-        "trimal -gt 0.5 -in {input} -out {output}"
-
-rule fasttree_co_occuring_hzs_a:
-    input:
-        results + "/hzs_a.co-occuring.w_query.trimal.aln"
-    output:
-        results + "/hzs_a.co-occuring.w_query.trimal.fasttree"
-    conda:
-        "envs/fasttree.yaml"
-    shell:
-        "fasttree -lg {input} > {output}"
-
-rule iqtree_co_occuring_hzs_a:
-    input:
-        results + "/hzs_a.co-occuring.w_query.trimal.aln"
-    output:
-        results + "/hzs_a.co-occuring.w_query.trimal.treefile"
-    params:
-        prefix=results + "/hzs_a.co-occuring.w_query.trimal"
-    conda:
-        "envs/iqtree.yaml"
-    threads:
-        12
-    shell:
-        "iqtree2 -s {input} -m LG+F+G4 -bb 1000 -nt {threads} -pre {params.prefix}"
-
-rule iqtree_co_occuring_hzs_bc:
-    input:
-        results + "/hzs_bc.co-occuring.w_query.trimal.aln"
-    output:
-        results + "/hzs_bc.co-occuring.w_query.trimal.treefile"
-    params:
-        prefix=results + "/hzs_bc.co-occuring.w_query.trimal"
-    conda:
-        "envs/iqtree.yaml"
-    threads:
-        12
-    shell:
-        "iqtree2 -s {input} -m LG+F+G4 -bb 1000 -nt {threads} -pre {params.prefix} -redo"
-
-
-rule extract_co_localized_hzs_a:
-    input:
-        results + "/hzs.co-localized.tsv",
-    output:
-        results + "/hzs_a.co-localized.faa"
-    shell:
-        "python ./hzs-outside-anammox-extract-hzs-a.py {input} > {output}"
-
-
-rule merge_hzs_a_w_query:
-    input:
-        hzs_a = results + "/hzs_a.co-localized.faa",
-        query = results + "/query_hzs_a.faa"
-    output:
-        results + "/hzs_a.co-localized.w_query.faa"
-    shell:
-        "cat {input.hzs_a} {input.query} > {output}"
-
-# Create a protein similarity network by doing all against all blast
-rule hzs_co_occuring_db:
-    input:
-        results + "/hzs_{subunit}.co-occuring.w_query.faa"
-    output:
-        results + "/hzs_{subunit}.co-occuring.w_query.dmnd"
-    params:
-        prefix = results + "/hzs_{subunit}.co-occuring.w_query"
-    conda:
-        "envs/diamond.yaml"
-    shell:
-        "diamond makedb --db {params.prefix} --in {input}"
-
-
-rule hzs_subunit_all_vs_all:
-    input:
-        query=results + "/hzs_{subunit}.co-occuring.w_query.faa",
-        db=results + "/hzs_{subunit}.co-occuring.w_query.dmnd"
-    output:
-        results + "/hzs_{subunit}.co-occuring.w_query.all_vs_all.blastp.tsv"
-    conda:
-        "envs/diamond.yaml"
-    threads:
-        24
-    shell:
-        """
-        diamond blastp --db {input.db} \
-            --query {input.query} \
-            --outfmt 6 qseqid sseqid pident ppos positive mismatch gapopen qlen slen length qstart qend sstart send evalue bitscore \
-            --out {output} \
-            --ultra-sensitive \
-            --max-target-seqs 5000 \
-            --evalue 1e-6 \
-            --query-cover 50 \
-            --subject-cover 50 \
-            --threads {threads}
-        """
-
-rule hzs_subunit_protein_similiarity_network:
-    """
-    Output of this rule is imported to cytoscape for visualization
-    """
-    input:
-        original_blast = "../processed_data/hzs-outside-anammox/hzs.gtdb.w_taxa.tsv.gz",
-        all_vs_all_blast = "../processed_data/hzs-outside-anammox/hzs_{subunit}.co-occuring.w_query.all_vs_all.blastp.tsv",
-        co_localized = "../processed_data/hzs-outside-anammox/hzs.co-localized.tsv"
-    output:
-        "../processed_data/hzs-outside-anammox/hzs_{subunit}.co-occuring.network.tsv"
-    shell:
-        "python hzs-outside-anammox-create-network-data.py {input.original_blast} {input.all_vs_all_blast} {input.co_localized} {output}"
-
-rule search_cxxch_motifs:
-    input:
-        "../processed_data/hzs-outside-anammox/{subunit}.gtdb.hits.faa"
-    output:
-        "../processed_data/hzs-outside-anammox/{subunit}.cxxch.tsv"
+        results + "{subunit}.blast.structure.genome.heme.tsv"
     conda:
         "./envs/biopython.yaml"
     shell:
-        "python hzs-outside-anammox-cxxch.py {input} {output}"
+        "python hzs-outside-anammox-cxxch.py {input.sequences} {input.table} {output}"
 
-# Copy files to Argos
-rule backup_hzs_co_occuring:
+rule add_tree_annotation_column:
     input:
-        results + "/hzs.co-occuring.tsv"
+        local_taxonomy = "../data/local_taxonomy.tsv",
+        local_seq = "../data/hzs-outside-anammox/{subunit}.faa",
+        master=results + "{subunit}.blast.structure.genome.heme.tsv"
     output:
-        backup_dir + "/hzs.co-occuring.tsv"
+        master=results + "{subunit}.blast.structure.genome.heme.annotation.tsv"
+    conda:
+        "./envs/biopython.yaml"
     shell:
-        "cp {input} {output}"
-
-rule backup_hzs_co_localized:
-    input:
-        results + "/hzs.co-localized.tsv"
-    output:
-        backup_dir + "/hzs.co-localized.tsv"
-    shell:
-        "cp {input} {output}"
-rule backup_network:
-    input:
-        "../processed_data/hzs-outside-anammox/hzs_{subunit}.co-occuring.network.tsv"
-    output:
-        backup_dir + "/hzs_{subunit}.co-occuring.network.tsv"
-    shell:
-        "cp {input} {output}"
+        "python merge_master_local_taxa.py {input.master} {input.local_taxonomy} {input.local_seq} {output}"

@@ -16,6 +16,7 @@ protein_dict = SeqIO.to_dict(SeqIO.parse(sys.argv[2], "fasta"))
 # Parse output from hmmsearch
 species_dict = {}
 proteins = []
+summary_data = {"assembly_accession":[], "rpoB_identifier":[], "rpoB_hmm_evalue":[]}
 with open(sys.argv[3], "r") as f:
     for line in f:
         if line[0] != "#":
@@ -28,6 +29,10 @@ with open(sys.argv[3], "r") as f:
                 if assembly_accession not in species_dict.keys():
                     species_dict[assembly_accession] = line[0]
                     proteins.append(line[0])
+                    summary_data['assembly_accession'].append(assembly_accession)
+                    summary_data['rpoB_identifier'].append(line[0])
+                    summary_data['rpoB_hmm_evalue'].append(float(line[4]))
+                    
 
 # Extract proteins and write to file
 rpoB_records = []
@@ -36,3 +41,6 @@ for assembly_accession, protein_accession in species_dict.items():
     record.id = assembly_accession
     rpoB_records.append(record)
 SeqIO.write(rpoB_records, sys.argv[4], "fasta")
+
+summary_df = pd.DataFrame.from_dict(summary_data)
+summary_df.to_csv(sys.argv[5], sep="\t", index=False)
