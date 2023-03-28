@@ -1,8 +1,14 @@
-backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hao-phylogeny/"
+"""
+Workflow to reproduce the HAO-phylogeny.
+"""
 results = "../../processed-data/hao-phylogeny/"
-envs = "../envs/"
 data = "../../data/"
+envs = "../envs/"
 
+# Path to backup location 
+backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hao-phylogeny/"
+
+# Define genomes in the HQ-Dataset
 HQ_GENOMES = ["GCA_000949635.1_ASM94963v1",
     "GCA_002443295.1_ASM244329v1",
     "GCA_007860005.1_ASM786000v1",
@@ -14,24 +20,14 @@ HQ_GENOMES = ["GCA_000949635.1_ASM94963v1",
 
 rule all:
     input:
-        results + "hao.gtdb.w_taxa.tsv.gz",
-        results + "hao.hq.faa",
-        results + "hao.gtdb.refseq.hq_anammox.faa",
-        results + "hao.blast.annotation.tsv",
-        results + "hao.gtdb.refseq.hq_anammox.trimal.fasttree",
-        results + "hao.gtdb.refseq.hq_anammox.remove_long_branch_1.trimal.fasttree",
-        results + "hao.gtdb.refseq.hq_anammox.remove_long_branch_1.trimal.treefile",
-        #results + "hao.gtdb.refseq.hq_anammox.ougtroup.trimal.fasttree",
-        #results + "hao.gtdb.refseq.hq_anammox.ougtroup.trimal.treefile",
-        #results + "hao-outgroup.aln",
-        #results + "hao-outgroup.anchors.faa",
-        #results + "hao.gtdb.refseq.hq_anammox.remove_long_branch_1.anchors.faa",
-        #results + "hao-anchors.wo_x.fasttree",
-        #results + "hao-anchors.aln"
-        results + "onr-outgroup-query.gtdb.blastp.tsv.gz",
-        results + "onr-outgroup-query.refseq.faa",
-        results + "hao.onr.trimal.treefile"
-#        "../data/hq.dmnd"
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.fasttree",
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.treefile",
+        results + "hao-onr.trimal.treefile",
+        results + "hao-blast-annotation.tsv",
+
+        # Uncomment following lines to backup
+        backup_dir + "hao-onr.trimal.treefile",
+        backup_dir + "hao-blast-annotation.tsv"
 
 rule download_queries:
     "Download HAO-like proteins from Kuenenia"
@@ -50,7 +46,7 @@ rule blast_gtdb:
     params:
         db = "../data/gtdb_representatives_database/gtdb_representatives.dmnd"
     conda:
-        "envs/diamond.yaml"
+        envs + "diamond.yaml"
     threads:
         30
     shell:
@@ -180,7 +176,7 @@ rule fasttree:
     shell:
         "fasttree -lg {input} > {output}"
 
-rule remove_long_branch_1:
+rule remove_long_branch:
     input:
         sequences = results + "hao-gtdb-refseq-hq-anammox.faa",
         long_branches = data + "hao-phylogeny/long-branches.txt"
@@ -203,7 +199,7 @@ rule align_after_long_branch_remove_1:
     shell:
         "mafft-linsi --thread {threads} {input} > {output}"
 
-rule trim_after_long_branch_remove_1:
+rule trim_after_long_branch_remove:
     input:
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.aln",
     output:
@@ -213,7 +209,7 @@ rule trim_after_long_branch_remove_1:
     shell:
         "trimal -automated1 -in {input} -out {output}"
 
-rule fasttree_after_long_branch_remove_1:
+rule fasttree_after_long_branch_remove:
     input:
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.aln",
     output:
@@ -227,7 +223,7 @@ rule iqtree:
     input:
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.aln"
     output:
-        results + "hao-gtdb-refseq-hq-anammox-remove-long-branch.trimal.treefile"
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.treefile"
     params:
         pre = results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal"
     conda:
@@ -262,7 +258,7 @@ rule blast_onr:
     params:
         db="../data/gtdb_representatives_database/gtdb_representatives.dmnd"
     conda:
-        "envs/diamond.yaml"
+        envs + "diamond.yaml"
     threads:
         30
     shell:
@@ -395,7 +391,7 @@ rule blast_table:
 rule add_tree_annotation_column:
     input:
         local_taxonomy = data + "local_taxonomy.tsv",
-        local_seq = results + "hao-hq.faa",
+        local_seq = results + "hao-hq-anammox.faa",
         master=results + "hao-blast.tsv"
     output:
         results + "hao-blast-annotation.tsv"
@@ -406,11 +402,12 @@ rule add_tree_annotation_column:
 
 rule backup:
     input:
+        hao_onr_tree = results + "hao-onr.trimal.treefile",
         tree_annotation = results + "hao-blast-annotation.tsv"
     output:
-        backup_dir + "hao-blast-annotation.tsv"
+        backup_dir + "hao-blast-annotation.tsv",
+        backup_dir + "hao-onr.trimal.treefile"
     params:
         backup_dir = backup_dir
     shell:
-        "cp {input.tree_annotation} {params.backup_dir}"
-    
+        "cp {input.hao_onr_tree} {input.tree_annotation} {params.backup_dir}"
