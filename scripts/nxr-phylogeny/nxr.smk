@@ -3,7 +3,7 @@ results = "../../processed_data/nxr-phylogeny/"
 envs = "../envs/"
 rule all:
     input:
-        results + "nxr.gtdb.tsv.gz"
+        expand(results + "{subunit}.gtdb.refseq.hits.no_anammox.faa", subunit=["nxr-a", "nxr-b"])
 
 rule download_queries:
     output:
@@ -35,4 +35,50 @@ rule blast_gtdb:
             --min-score 80 \
             --compress 1 \
             --threads {threads} \
+        """
+
+rule add_accessions:
+    input:
+        blast=results + "nxr.gtdb.tsv.gz",
+        prot="../../data/gtdb_representatives_database/prot2accession.tsv.gz"
+    output:
+        temp(results + "nxr.gtdb.w_accessions.tsv.gz")
+    shell:
+        "python ../hzs-outside-anammox-merge-blast-accessions.py {input.blast} {input.prot} {output}"
+
+rule add_taxa:
+    input:
+        blast=results + "nxr.gtdb.w_accessions.tsv.gz",
+        gtdb="../../data/gtdb_representatives_database/gtdb_representatives.sample_gtdb.metadata.tsv",
+    output:
+        results + "nxr.gtdb.w_taxa.tsv.gz"
+    shell:
+        "python ../hzs-outside-anammox-merge-blast-taxa.py {input.blast} {input.gtdb} {output}"
+
+rule extract_nxr_a_gtdb_refseq:
+    input:
+        results + "nxr.gtdb.w_taxa.tsv.gz"
+    output:
+        results + "nxr-a.gtdb.refseq.hits.no_anammox.faa"
+    shell:
+        """python ../extract-blast-hits.py --blast {input} \
+            --fasta {output} \
+            --queries SOH03954.1 \
+            --qcover 0.5 \
+            --scover 0.5 \
+            --source refseq
+        """
+
+rule extract_nxr_b_gtdb_refseq:
+    input:
+        results + "nxr.gtdb.w_taxa.tsv.gz"
+    output:
+        results + "nxr-b.gtdb.refseq.hits.no_anammox.faa"
+    shell:
+        """python ../extract-blast-hits.py --blast {input} \
+            --fasta {output} \
+            --queries SOH03957.1 \
+            --qcover 0.5 \
+            --scover 0.5 \
+            --source refseq
         """
