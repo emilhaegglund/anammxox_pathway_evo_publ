@@ -1,4 +1,6 @@
 conda_envs/
 processed_data/
 sandbox/
+processed-data/
+bin/
 .snakemake
