@@ -33,6 +33,11 @@ elif sys.argv[3] == "hzs_a":
 else:
     sys.exit()
 
+# Exclude hits with a blast alignment shorter than 50% of query and subject
+df['qcover'] = df["length"] / blast_df["qlen"]
+df['scover'] = df["length"] / blast_df["slen"]
+df = df[(df['qcover'] >= 0.5) and (df['scover'] >= 0.5)]
+
 # Remove bad hits
 df = df[df["bitscore"] >= 80]
 

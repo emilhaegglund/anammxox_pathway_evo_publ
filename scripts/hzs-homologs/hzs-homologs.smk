@@ -6,7 +6,14 @@ bin_dir = "../../bin"  # Path to directory containing software not in Bioconda
 SUBUNITS = ["hzs_a", "hzs_bc"]
 rule all:
     input:
+        # Summary of blast search
         results + "hzs-blast-summary.svg",
+
+        # Summary of structure alignment
+        os.path.join(backup_dir, "structure-alignment/alignment-summary.pdf"),
+        os.path.join(backup_dir, "structure-alignment/alignment-summary.tsv")
+        
+        # Phylogenies
         expand(results + "{subunit}-gtdb-refseq-long-branch-remove.trimal.rooted.nwk", subunit=SUBUNITS),
         #expand(results + "{subunit}.blast.structure.genome.heme.annotation.tsv", subunit=SUBUNITS),
         #expand(results + "{subunit}.gtdb.hits.faa", subunit=SUBUNITS),
@@ -77,6 +84,140 @@ rule plot_summary_blast_results:
         results + "hzs-blast-summary.svg"
     shell:
         "python plot-blast-results-distribution.py {input} {output}"
+
+# Run pairwise structure alignment between query and hits
+rule find_alpha_fold_structures:
+    """
+    Parse uniprot and collect links to AlphaFold structures for the hits
+    which have structures available.
+    """
+    input:
+        blast_df = results + "hzs.gtdb.w_taxa.tsv.gz"
+    output:
+        results + "structure-alignment/{subunit}-alphafold-identifiers.tsv"
+    params:
+        subunit = "{subunit}"
+    shell:
+        "python search-structures-uniprot.py {input} {output} {params.subunit}"
+
+rule download_hzs_a_structure:
+    """
+    Download Scalinduae 
+    """
+    output:
+        results + "structure-alignment/hzs_a-af-structure.pdb"
+    shell:
+        "wget -O {output} https://alphafold.ebi.ac.uk/files/AF-A0A286U438-F1-model_v4.pdb"
+
+rule download_hzs_bc_structure:
+    """
+    Download Scalinduae 
+    """
+    output:
+        results + "structure-alignment/hzs_bc-af-structure.pdb"
+    shell:
+        "wget -O {output} https://alphafold.ebi.ac.uk/files/AF-A0A286U486-F1-model_v4.pdb"
+
+checkpoint download_homolog_hzs_bc_structures:
+    input:
+        results + "structure-alignment/hzs_bc-alphafold-identifiers.tsv"
+    output:
+        directory(results + "structure-alignment/hzs_bc-structures")
+    shell:
+        """
+        awk -F'\\t' '{{ print $2 }}' {input} | grep -v 'alphafold_url' | sed '/^$/d' | wget -i - -P {output}
+        """
+
+def get_hzs_bc_structures(wildcards):
+    ck_output = checkpoints.download_homolog_hzs_bc_structures.get(**wildcards).output[0]
+    homologs, = glob_wildcards(os.path.join(ck_output, "{homologs}.pdb"))
+    return os.path.join(results, "structure-alignment", "hzs_bc-structures",
+                               "{homologs}.pdb")
+
+rule structure_alignment_hzs_bc:
+    input:
+        ref = results + "structure-alignment/hzs_bc-af-structure.pdb",
+        target = get_hzs_bc_structures
+    output:
+        results + "structure-alignment/hzs_bc-structure-alignment/{homologs}.txt"
+    conda:
+        envs + "tmalign.yaml"
+    shell:
+        """
+        TMalign {input.ref} {input.target} -a > {output}
+        """
+
+checkpoint download_homolog_hzs_a_structures:
+    input:
+        results + "structure-alignment/hzs_a-alphafold-identifiers.tsv"
+    output:
+        directory(results + "structure-alignment/hzs_a-structures")
+    shell:
+        """
+        awk -F'\\t' '{{ print $2 }}' {input} | grep -v 'alphafold_url' | sed '/^$/d' | wget -i - -P {output}
+        """
+
+def get_hzs_a_structures(wildcards):
+    ck_output = checkpoints.download_homolog_hzs_a_structures.get(**wildcards).output[0]
+    homologs, = glob_wildcards(os.path.join(ck_output, "{homologs}.pdb"))
+    return os.path.join(results, "structure-alignment", "hzs_a-structures",
+                               "{homologs}.pdb")
+
+rule structure_alignment_hzs_a:
+    input:
+        ref = results + "structure-alignment/hzs_a-af-structure.pdb",
+        target= get_hzs_a_structures
+    output:
+        results + "structure-alignment/hzs_a-structure-alignment/{homologs}.txt"
+    conda:
+        envs + "tmalign.yaml"
+    shell:
+        """
+        TMalign {input.ref} {input.target} -a > {output}
+        """
+
+def get_hzs_bc_structure_alignment(wildcards):
+    ck_output = checkpoints.download_homolog_hzs_bc_structures.get(**wildcards).output[0]
+    homologs, = glob_wildcards(os.path.join(ck_output, "{homologs}.pdb"))
+    return expand(os.path.join(results, "structure-alignment", "hzs_bc-structure-alignment", "{homologs}.txt"), homologs=homologs)
+
+def get_hzs_a_structure_alignment(wildcards):
+    ck_output = checkpoints.download_homolog_hzs_a_structures.get(**wildcards).output[0]
+    homologs, = glob_wildcards(os.path.join(ck_output, "{homologs}.pdb"))
+    return expand(os.path.join(results, "structure-alignment", "hzs_a-structure-alignment", "{homologs}.txt"), homologs=homologs)
+
+rule summarize_results:
+    input:
+        get_hzs_bc_structure_alignment,
+        get_hzs_a_structure_alignment
+    output:
+        results + "structure-alignment/alignment-summary.tsv"
+    shell:
+        "python parse-structure-alignments.py {input} {output}"
+
+rule plot_results:
+    input:
+        results + "structure-alignment/alignment-summary.tsv"
+    output:
+        results + "structure-alignment/alignment-summary.pdf"
+    shell:
+        "python plot-structure-alignment-summary.py {input} {output}"
+
+rule backup_results:
+    input:
+        results + "structure-alignment/alignment_summary.tsv"
+    output:
+        backup_dir +  "structure-alignemt/alignment-summary.tsv"
+    shell:
+        "cp {input} {output}"
+
+rule backup_figure:
+    input:
+        results + "structure-alignment/alignment-summary.pdf"
+    output:
+        backup_dir + "structure-alignment/alignment-summary.pdf")
+    shell:
+        "cp {input} {output}"
 
 # Prepare phylogeny from RefSeq homologs
 rule extract_hzs_a_refseq_sequences:
@@ -471,9 +612,9 @@ rule extract_all_hits:
 # Create master table
 rule merge_blast_and_structure:
     input:
-        blast=results+"hzs-gtdb-w-taxa.tsv.gz",
-        structure_alignment="../processed_data/hzs-structure-alignment-no-masking/alignment_summary.tsv",
-        structure_map="../processed_data/hzs-structure-alignment-no-masking/{subunit}_alphafold_identifiers.tsv"
+        blast = results + "hzs-gtdb-w-taxa.tsv.gz",
+        structure_alignment = results + "structure-alignment/alignment-summary.tsv",
+        structure_map = results + "structure-alignment/{subunit}-alphafold-identifiers.tsv"
     output:
         results + "{subunit}-blast-structure.tsv"
     params:

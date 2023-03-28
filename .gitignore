@@ -1,6 +1,8 @@
-conda_envs/
+conda-envs/
 processed_data/
 sandbox/
 processed-data/
 bin/
+data/old-data/
+scripts/old-scripts/
 .snakemake
