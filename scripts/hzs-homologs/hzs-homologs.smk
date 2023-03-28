@@ -1,17 +1,24 @@
-backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hzs-homologs/"
+"""
+Workflow to reproduce results for HZS-homologs
+"""
 results = "../processed-data/hzs-homologs/"
 data = "../../data/"
 envs = "../envs/"
 bin_dir = "../../bin"  # Path to directory containing software not in Bioconda
+
+# Path to directory for backup of results
+backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hzs-homologs/"
+
 SUBUNITS = ["hzs_a", "hzs_bc"]
+
 rule all:
     input:
         # Summary of blast search
         results + "hzs-blast-summary.svg",
 
         # Summary of structure alignment
-        os.path.join(backup_dir, "structure-alignment/alignment-summary.pdf"),
-        os.path.join(backup_dir, "structure-alignment/alignment-summary.tsv")
+        backup_dir + "structure-alignment/alignment-summary.pdf",
+        backup_dir + "structure-alignment/alignment-summary.tsv",
         
         # Phylogenies
         expand(results + "{subunit}-gtdb-refseq-long-branch-remove.trimal.rooted.nwk", subunit=SUBUNITS),
@@ -92,7 +99,7 @@ rule find_alpha_fold_structures:
     which have structures available.
     """
     input:
-        blast_df = results + "hzs.gtdb.w_taxa.tsv.gz"
+        blast_df = results + "hzs-gtdb-w-taxa.tsv.gz"
     output:
         results + "structure-alignment/{subunit}-alphafold-identifiers.tsv"
     params:
@@ -205,9 +212,9 @@ rule plot_results:
 
 rule backup_results:
     input:
-        results + "structure-alignment/alignment_summary.tsv"
+        results + "structure-alignment/alignment-summary.tsv"
     output:
-        backup_dir +  "structure-alignemt/alignment-summary.tsv"
+        backup_dir +  "structure-alignment/alignment-summary.tsv"
     shell:
         "cp {input} {output}"
 
@@ -215,7 +222,7 @@ rule backup_figure:
     input:
         results + "structure-alignment/alignment-summary.pdf"
     output:
-        backup_dir + "structure-alignment/alignment-summary.pdf")
+        backup_dir + "structure-alignment/alignment-summary.pdf"
     shell:
         "cp {input} {output}"
 

@@ -44,7 +44,7 @@ rule blast_gtdb:
     output:
         results + "hao-gtdb.tsv.gz"
     params:
-        db = "../data/gtdb_representatives_database/gtdb_representatives.dmnd"
+        db = data + "gtdb_representatives_database/gtdb_representatives.dmnd"
     conda:
         envs + "diamond.yaml"
     threads:
@@ -82,7 +82,7 @@ rule add_taxa:
 
 rule hq_database:
     input:
-        expand(data + "proteomes/{hq}_protein.faa", hq=HQ_GENOMES)
+        expand(data + "anammox-proteomes/{hq}_protein.faa", hq=HQ_GENOMES)
     output:
         results + "hq.dmnd"
     conda:
@@ -128,7 +128,7 @@ rule extract_hao_gtdb_refseq:
     output:
         results + "hao-gtdb-refseq-no-anammox.faa"
     shell:
-        """python extract-blast-hits.py --blast {input} \
+        """python ../general/extract-blast-hits.py --blast {input} \
             --fasta {output} \
             --qcover 0.5 \
             --scover 0.5 \
@@ -256,7 +256,7 @@ rule blast_onr:
     output:
         results + "onr-outgroup-gtdb.tsv.gz"
     params:
-        db="../data/gtdb_representatives_database/gtdb_representatives.dmnd"
+        db=data + "gtdb_representatives_database/gtdb_representatives.dmnd"
     conda:
         envs + "diamond.yaml"
     threads:
