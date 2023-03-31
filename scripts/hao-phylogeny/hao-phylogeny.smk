@@ -6,7 +6,7 @@ data = "../../data/"
 envs = "../envs/"
 
 # Path to backup location 
-backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hao-phylogeny/"
+backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed-data/hao-phylogeny/"
 
 # Define genomes in the HQ-Dataset
 HQ_GENOMES = ["GCA_000949635.1_ASM94963v1",

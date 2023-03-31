@@ -1,13 +1,13 @@
 """
 Workflow to reproduce results for HZS-homologs
 """
-results = "../processed-data/hzs-homologs/"
+results = "../../processed-data/hzs-homologs/"
 data = "../../data/"
 envs = "../envs/"
-bin_dir = "../../bin"  # Path to directory containing software not in Bioconda
+bin_dir = "../../bin/"  # Path to directory containing software not in Bioconda
 
 # Path to directory for backup of results
-backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hzs-homologs/"
+backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed-data/hzs-homologs/"
 
 SUBUNITS = ["hzs_a", "hzs_bc"]
 
@@ -19,9 +19,10 @@ rule all:
         # Summary of structure alignment
         backup_dir + "structure-alignment/alignment-summary.pdf",
         backup_dir + "structure-alignment/alignment-summary.tsv",
-        
+
         # Phylogenies
-        expand(results + "{subunit}-gtdb-refseq-long-branch-remove.trimal.rooted.nwk", subunit=SUBUNITS),
+        expand(results + "{subunit}-gtdb-refseq-long-branch-remove.trimal.treefile", subunit=SUBUNITS),
+        expand(results + "{subunit}-blast-structure-genome-heme-annotation.tsv", subunit=SUBUNITS)
         #expand(results + "{subunit}.blast.structure.genome.heme.annotation.tsv", subunit=SUBUNITS),
         #expand(results + "{subunit}.gtdb.hits.faa", subunit=SUBUNITS),
         #results + "hzs_bc.sister_group.anammox.aln",
@@ -109,7 +110,7 @@ rule find_alpha_fold_structures:
 
 rule download_hzs_a_structure:
     """
-    Download Scalinduae 
+    Download Scalinduae
     """
     output:
         results + "structure-alignment/hzs_a-af-structure.pdb"
@@ -118,7 +119,7 @@ rule download_hzs_a_structure:
 
 rule download_hzs_bc_structure:
     """
-    Download Scalinduae 
+    Download Scalinduae
     """
     output:
         results + "structure-alignment/hzs_bc-af-structure.pdb"
@@ -252,7 +253,7 @@ rule extract_hzs_bc_refseq_sequences:
     output:
         results + "hzs_bc-gtdb-refseq-no-anammox.faa"
     shell:
-        """python extract-blast-hits.py \
+        """python ../general/extract-blast-hits.py \
             --blast {input.blast} \
             --fasta {output} \
             --queries SOH05198.1,SOH05199.1,GAX62881.1 \
@@ -418,14 +419,6 @@ rule iqtree_refseqs:
     shell:
         "iqtree2 -s {input} -mset LG,WAG -alrt 1000 -B 1000 -nt {threads} -pre {params.pre} -redo"
 
-rule mad_root:
-    input:
-        results + "{subunit}-gtdb-refseq-long-branch-remove.trimal.treefile"
-    output:
-        results + "{subunit}-gtdb-refseq-long-branch-remove.trimal.rooted.nwk"
-    shell:
-        bin_dir + "MADroot/madRoot {input} > {output}"
-
 # Align only Brocadiae and sister group
 rule extract_sister_group:
     input:
@@ -573,19 +566,12 @@ rule iqtree_maribacterr_hzs_a:
     conda:
         envs + "iqtree.yaml"
     params:
-        pre = results + "{subunit}-gtdb-refseq-maribacter-trimal"
+        pre = results + "hzs_a-gtdb-refseq-maribacter-trimal"
     threads:
         12
     shell:
         "iqtree2 -s {input} -mset LG,WAG -alrt 1000 -B 1000 -nt {threads} -pre {params.pre} -redo"
 
-rule mad_root_maribacter:
-    input:
-        results + "hzs_a-gtdb-refseq-maribacter-trimal.treefile"
-    output:
-        results + "hzs_a-gtdb-refseq-maribacter-trimal-rooted.nwk"
-    shell:
-        bin_dir + "MADroot/madRoot {input} > {output}"
 
 # Plot Overview of HZS-BC-operon for anammox and sister group
 #rule extract_hzs_bs
@@ -597,15 +583,15 @@ rule mad_root_maribacter:
 #        "python  .py {input.genbanks} {input.proteins} > {output}"
 # Extract all hits
 
-rule extract_all_hits:
-    input:
-        results + "hzs.gtdb.w_taxa.tsv.gz"
-    output:
-        results + "{subunit}.gtdb.hits.faa"
-    params:
-        subunit = "{subunit}"
-    shell:
-        "python hzs-no-masking-extract-hits.py {input} {params.subunit} all all > {output}"
+#rule extract_all_hits:
+#    input:
+#        results + "hzs.gtdb.w_taxa.tsv.gz"
+#    output:
+#        results + "{subunit}.gtdb.hits.faa"
+#    params:
+#        subunit = "{subunit}"
+#    shell:
+#        "python hzs-no-masking-extract-hits.py {input} {params.subunit} all all > {output}"
 
 #rule run_interpro:
 #    input:
