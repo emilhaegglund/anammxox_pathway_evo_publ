@@ -4,11 +4,16 @@ from Bio import SeqIO
 import sys
 import os
 import matplotlib.pyplot as plt
-import matplotlib as mpl
+import matplotlib
 import numpy as np
 
-new_rc_params = {"text.usetex": False, "svg.fonttype": "none"}
-mpl.rcParams.update(new_rc_params)
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
+font = {'family' : 'Arial',
+        #'weight' : 'bold',
+        'size'   : 4}
+
+matplotlib.rc('font', **font)
 
 y_label_order = []
 
@@ -27,6 +32,7 @@ for record in SeqIO.parse(
 ):
     query_length[record.id] = len(record.seq)
 protein_df = pd.read_csv(sys.argv[3], sep="\t")
+protein_df.rename(columns={"protein_accession":"protein_id", "assembly_accession":"accession"}, inplace=True)
 blast_header = [
     "query",
     "subject",
@@ -46,8 +52,9 @@ blast_df = pd.read_csv(
     names=blast_header,
     sep="\t",
 )
+#blast_df = blast_df[blast_df["bitscore"] >= 80]
 blast_df.sort_values(by='bitscore', inplace=True, ascending=False)
-blast_df.drop_duplicates(subset=["subject"], inplace=True)
+#blast_df.drop_duplicates(subset=["subject"], inplace=True)
 anammox_pathway_proteins_df = pd.read_csv(
     sys.argv[5], sep="\t"
 )
@@ -68,9 +75,10 @@ for accession, df in blast_df.groupby("accession"):
         hit_map[accession][protein] = 0
         if protein in df["query"].to_list():
             hits_df = df[df["query"] == protein].copy(deep=True)
-            hits_df.sort_values(by="bitscore", inplace=True, ascending=False)
-            best_hit = hits_df["bitscore"].iat[0]
-            hit_map[accession][protein] = best_hit / query_length[protein]
+            hits_df.sort_values(by="pid", inplace=True, ascending=False)
+            best_hit = hits_df["pid"].iat[0]
+            hit_map[accession][protein] = best_hit
+            #hit_map[accession][protein] = best_hit / query_length[protein]
 
 for accession in y_label_order:
     if accession not in hit_map.keys():
@@ -110,7 +118,7 @@ plot_dfs = []
 groups = [
     "HZS",
     "HAO-like",
-    "Nir_associated",
+    #"Nir_associated",
     "NXR",
     #"ETM",
     #"Rb-2",
@@ -128,12 +136,16 @@ for group in groups:
     plot_dfs.append(plot_df)
 
 vmax = df.values.max()
-vmin = df.values.min()
+#vmin = df.values.min()
+vmin = 0
 
 # Set the width for each group to the same size as the number of
 # orthogroups in the group
 plot_widths = [f.shape[1] for f in plot_dfs] + [1]
-sns.set(rc={"figure.figsize": (5, 6)})
+cm = 1/2.56
+width = int(sys.argv[8])
+height = int(sys.argv[9])
+sns.set(rc={"figure.figsize": (width*cm, height*cm)})
 sns.set(font_scale=0.5)
 
 fig, axs = plt.subplots(
@@ -141,6 +153,9 @@ fig, axs = plt.subplots(
 )
 
 cmap = sns.cm.rocket_r
+for plot_df in plot_dfs:
+    print(plot_df)
+
 for i, plot_df in enumerate(plot_dfs):
     plot_df.rename(columns=rename_columns, inplace=True)
     if i == 0:
@@ -150,7 +165,7 @@ for i, plot_df in enumerate(plot_dfs):
             cmap=cmap,
             ax=axs[i],
             cbar=False,
-            linewidths=1,
+            linewidths=0.5,
         )
     else:
         sns.heatmap(
@@ -159,13 +174,13 @@ for i, plot_df in enumerate(plot_dfs):
             cmap=cmap,
             ax=axs[i],
             cbar=False,
-            linewidths=1,
+            linewidths=0.5,
             yticklabels=False,
         )
     axs[i].tick_params(
         axis="both",
         which="major",
-        labelsize=10,
+        labelsize=6,
         labelbottom=False,
         bottom=False,
         top=False,
@@ -173,17 +188,6 @@ for i, plot_df in enumerate(plot_dfs):
     )
     axs[i].set(xlabel=groups[i])
     axs[i].xaxis.set_label_position("top")
-    # plot = sns.heatmap(data=df, cmap=cmap, square=True)
-    # plt.tick_params(
-    #    axis="both",
-    #    which="major",
-    #    labelsize=10,
-    #    labelbottom=False,
-    #    bottom=False,
-    #    top=False,
-    #    labeltop=True,
-    # )
-
     xlabels = axs[i].get_xticklabels()
     axs[i].set_xticklabels(xlabels, rotation=-90)
 fig.colorbar(axs[-2].collections[0], cax=axs[-1], shrink=0.5)
