@@ -5,7 +5,7 @@ results = "../../processed-data/hao-phylogeny/"
 data = "../../data/"
 envs = "../envs/"
 
-# Path to backup location 
+# Path to backup location
 backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed-data/hao-phylogeny/"
 
 # Define genomes in the HQ-Dataset
@@ -20,14 +20,28 @@ HQ_GENOMES = ["GCA_000949635.1_ASM94963v1",
 
 rule all:
     input:
+        # Blast search
+        results + "hao-gtdb-hit-overlap.tsv",
+        results + "hao-kust-identity.tsv",
+
+        # Phylogenies
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.fasttree",
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.treefile",
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal-gt05.treefile",
         results + "hao-onr.trimal.treefile",
-        results + "hao-blast-annotation.tsv",
+        results + "hao-onr-blast-annotation.tsv",
+        results + "hao-onr-heme-clean-trimal.treefile",
+        results + "hao-onr-heme-clean-trimal-gt05.treefile",
+        results + "hao-hao_like.aln",
+
+        # HAO6 cladde
+        results + "hao6-clade.aln",
+        results + "hao6-clade-all-vs-all-blast.tsv",
+        #results + "hao-onr-cluster-trimal.treefile",
 
         # Uncomment following lines to backup
-        backup_dir + "hao-onr.trimal.treefile",
-        backup_dir + "hao-blast-annotation.tsv"
+        #backup_dir + "hao-onr.trimal.treefile",
+        backup_dir + "hao-onr-blast-annotation.tsv"
 
 rule download_queries:
     "Download HAO-like proteins from Kuenenia"
@@ -39,6 +53,7 @@ rule download_queries:
         "efetch -id SOH04660.1,SOH06265.1,SOH05916.1,SOH05518.1,SOH05157.1,SOH04857.1,SOH03722.1,SOH04263.1,SOH05871.1,SOH05896.1 -db protein -format fasta > {output}"
 
 rule blast_gtdb:
+    "Search the GTDB-database for HAO-like proteins"
     input:
         results + "query.faa"
     output:
@@ -63,6 +78,8 @@ rule blast_gtdb:
         """
 
 rule add_accessions:
+    """Add the accession number to the HAO-hits, used to link it to the
+       taxonomyin the next step."""
     input:
         blast = results + "hao-gtdb.tsv.gz",
         prot = data + "gtdb_representatives_database/prot2accession.tsv.gz"
@@ -72,6 +89,7 @@ rule add_accessions:
         "python ../general/merge-blast-accessions.py {input.blast} {input.prot} {output}"
 
 rule add_taxa:
+    "Add taxonomic information to the HAO-hits"
     input:
         blast = results + "hao-gtdb-w-accessions.tsv.gz",
         gtdb = data + "gtdb_representatives_database/gtdb_representatives.sample_gtdb.metadata.tsv",
@@ -80,7 +98,17 @@ rule add_taxa:
     shell:
         "python ../general/merge-blast-taxa.py {input.blast} {input.gtdb} {output}"
 
+rule check_blast_overlap:
+    "Calculate the Jaccard Index to check how similar "
+    input:
+        results + "hao-gtdb-w-taxa.tsv.gz"
+    output:
+        results + "hao-gtdb-hit-overlap.tsv",
+    shell:
+        "python check-diamond-hits-overlap.py {input} {output}"
+
 rule hq_database:
+    "Create a Diamond database for the high-quality proteomes"
     input:
         expand(data + "anammox-proteomes/{hq}_protein.faa", hq=HQ_GENOMES)
     output:
@@ -91,6 +119,7 @@ rule hq_database:
         "cat {input} | diamond makedb --db {output} --in -"
 
 rule blast_hq_dataset:
+    "Search the anammox high-quality proteomes for HAO proteins"
     input:
         queries = results + "query.faa",
         db = results + "hq.dmnd"
@@ -114,7 +143,18 @@ rule blast_hq_dataset:
             --threads {threads} \
         """
 
+rule kust_blast_identity:
+    """Extract the self hits of Kuenenia to get an estimate of
+       how similar the HAO proteins inside Kuenenia are."""
+    input:
+        results + "hao-hq-anammox.tsv.gz"
+    output:
+        results + "hao-kust-identity.tsv"
+    shell:
+        "python hao-kust-blast.py {input} {output}"
+
 rule extract_hq_hao_hits:
+    "Extract HAO-hits from high-quality proteomes."
     input:
         results + "hao-hq-anammox.tsv.gz"
     output:
@@ -123,6 +163,7 @@ rule extract_hq_hao_hits:
         "python extract-hq-hao.py {input} > {output}"
 
 rule extract_hao_gtdb_refseq:
+    "Extract hits from search against GTDB"
     input:
         results + "hao-gtdb-w-taxa.tsv.gz"
     output:
@@ -233,8 +274,31 @@ rule iqtree:
     shell:
         "iqtree2 -s {input} -mset LG,WAG -B 1000 -alrt 1000 -nt {threads} -pre {params.pre} -redo"
 
+rule gap_trim_after_long_branch_remove:
+    input:
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.aln",
+    output:
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal-gt05.aln",
+    conda:
+        envs + "trimal.yaml"
+    shell:
+        "trimal -automated1 -in {input} -out {output}"
+
+rule gap_trim_iqtree:
+    input:
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal-gt05.aln"
+    output:
+        results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal-gt05.treefile"
+    params:
+        pre = results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal-gt05"
+    conda:
+        envs + "iqtree.yaml"
+    threads:
+        12
+    shell:
+        "iqtree2 -s {input} -mset LG,WAG -B 1000 -alrt 1000 -nt {threads} -pre {params.pre} -redo"
 """
-Using MAD-rooting it has been suggested that HAO/HDH/IhOCC forms a separate 
+Using MAD-rooting it has been suggested that HAO/HDH/IhOCC forms a separate
 clade of Octaheme Cytochrome C proteins. Using this information we can root this
 phylogeny with the Octaheme Nitrite reductase group.
 """
@@ -380,32 +444,226 @@ rule iqtree_onr_hao:
     shell:
         "iqtree2 -s {input} -m MFP -mset LG,WAG -B 1000 -alrt 1000 -pre {params.pre} -nt {threads} -redo"
 
+rule filter_hao_onr:
+    "Filter one anammox clade with 11 heme groups and an early div group with 9 hemes"
+    input:
+        sequences = results + "hao-onr.faa",
+        heme_clean = data + "hao-phylogeny/hao-onr-heme-filter.txt"
+    output:
+        results + "hao-onr-heme-clean.faa"
+    conda:
+        envs + "biopython.yaml"
+    shell:
+        "python ../general/remove-taxa.py {input.sequences} {input.heme_clean} {output}"
+
+rule align_hao_onr_heme_clean:
+    input:
+        results + "hao-onr-heme-clean.faa"
+    output:
+        results + "hao-onr-heme-clean.aln"
+    conda:
+        envs + "mafft.yaml"
+    threads:
+        12
+    shell:
+        "mafft-linsi --thread {threads} --reorder {input} > {output}"
+
+rule trim_hao_onr_heme_clean:
+    input:
+        results + "hao-onr-heme-clean.aln"
+    output:
+        results + "hao-onr-heme-clean-trimal.aln"
+    conda:
+        envs + "trimal.yaml"
+    shell:
+        "trimal -automated1 -in {input} -out {output}"
+
+rule iqtree_hao_onr_heme_clean:
+    input:
+        results + "hao-onr-heme-clean-trimal.aln"
+    output:
+        results + "hao-onr-heme-clean-trimal.treefile"
+    params:
+        pre = results + "hao-onr-heme-clean-trimal"
+    threads:
+        12
+    conda:
+        envs + "iqtree.yaml"
+    shell:
+        "iqtree2 -s {input} -m MFP -mset LG,WAG -B 1000 -alrt 1000 -pre {params.pre} -nt {threads} -redo"
+
+rule gap_trim_hao_onr_heme_clean:
+    input:
+        results + "hao-onr-heme-clean.aln"
+    output:
+        results + "hao-onr-heme-clean-trimal-gt05.aln"
+    conda:
+        envs + "trimal.yaml"
+    shell:
+        "trimal -gt 0.5 -in {input} -out {output}"
+
+rule iqtree_gap_trim_hao_onr_heme_clean:
+    input:
+        results + "hao-onr-heme-clean-trimal-gt05.aln"
+    output:
+        results + "hao-onr-heme-clean-trimal-gt05.treefile"
+    params:
+        pre = results + "hao-onr-heme-clean-trimal-gt05"
+    threads:
+        12
+    conda:
+        envs + "iqtree.yaml"
+    shell:
+        "iqtree2 -s {input} -m MFP -mset LG,WAG -B 1000 -alrt 1000 -pre {params.pre} -nt {threads} -redo"
+
+rule cluster_hao_onr:
+    """
+    In this step the proteins are clustered at 80% identity. This reduces the
+    number of sequences from 815 to 418 sequences.
+    """
+    input:
+        results + "hao-onr.faa"
+    output:
+        results + "hao-onr-cluster.faa"
+    conda:
+        envs + "cd-hit.yaml"
+    shell:
+        "cd-hit -i {input} -o {output} -c 0.8"
+
+rule align_cluster_hao_onr:
+    """
+    This alignment contains 2602 sites.
+    """
+    input:
+        results + "hao-onr-cluster.faa"
+    output:
+        results + "hao-onr-cluster.aln"
+    conda:
+        envs + "mafft.yaml"
+    threads:
+        12
+    shell:
+        "mafft-linsi --reorder --thread {threads} {input} > {output}"
+
+rule trim_clustered_hao_onr:
+    "After trimming there are 254 sites in the alignment"
+    input:
+        results + "hao-onr-cluster.aln"
+    output:
+        results + "hao-onr-cluster-trimal.aln"
+    conda:
+        envs + "trimal.yaml"
+    shell:
+        "trimal -automated1 -in {input} -out {output}"
+
+rule iqtree_clustered_hao_onr:
+    input:
+        results + "hao-onr-cluster-trimal.aln"
+    output:
+        results + "hao-onr-cluster-trimal.treefile"
+    params:
+        pre = results + "hao-onr-cluster-trimal"
+    threads:
+        12
+    conda:
+        envs + "iqtree.yaml"
+    shell:
+        "iqtree2 -s {input} -m MFP -mset LG,WAG -B 1000 -alrt 1000 -pre {params.pre} -nt {threads} -redo"
+
 rule blast_table:
     input:
-        results + "hao-gtdb-w-taxa.tsv.gz"
+        hao = results + "hao-gtdb-w-taxa.tsv.gz",
+        onr = results + "onr-outgroup-gtdb-w-taxa.tsv.gz"
     output:
-        results + "hao-blast.tsv"
+        results + "hao-onr-blast.tsv"
     shell:
         "python create-hao-blast-table.py {input} {output}"
 
 rule add_tree_annotation_column:
     input:
-        local_taxonomy = data + "local_taxonomy.tsv",
+        local_taxonomy = data + "local-taxonomy.tsv",
         local_seq = results + "hao-hq-anammox.faa",
-        master=results + "hao-blast.tsv"
+        master = results + "hao-onr-blast.tsv"
     output:
-        results + "hao-blast-annotation.tsv"
+        results + "hao-onr-blast-annotation.tsv"
     conda:
         envs + "biopython.yaml"
     shell:
-        "python merge-blast-table-local-taxa.py {input.master} {input.local_taxonomy} {input.local_seq} {output}"
+        "python ../general/merge-blast-table-local-taxa.py {input.master} {input.local_taxonomy} {input.local_seq} {output}"
+
+rule extract_hao_hao_like_sequences:
+    input:
+        accessions = data + "hao-phylogeny/hao-hao_like-accessions.txt",
+        sequences = results + "hao-onr-heme-clean.faa"
+    output:
+        results + "hao-hao_like.faa"
+    conda:
+        envs + "seqtk.yaml"
+    shell:
+        "seqtk subseq {input.sequences} {input.accessions} > {output}"
+
+rule aling_hao_hao_like:
+    input:
+        results + "hao-hao_like.faa"
+    output:
+        results + "hao-hao_like.aln"
+    conda:
+        envs + "mafft.yaml"
+    threads:
+        12
+    shell:
+        "mafft-linsi --thread {threads} {input} > {output}"
+
+rule extract_hao6_group:
+    input:
+        accessions = data + "hao-phylogeny/hao-clades.tsv",
+        sequences = results + "hao-onr-heme-clean.faa"
+    output:
+        results + "hao6-clade.faa"
+    conda:
+        envs + "seqtk.yaml"
+    shell:
+        "grep 'HAO6' {input.accessions} | awk -F'\\t' '{{ print $1  }}' | seqtk subseq {input.sequences} - > {output}"
+
+rule align_hao6_clade:
+    input:
+        results + "hao6-clade.faa"
+    output:
+        results + "hao6-clade.aln"
+    conda:
+        envs + "mafft.yaml"
+    shell:
+        "mafft-linsi {input} > {output}"
+
+rule hao6_blast:
+    input:
+        db = results + "hq.dmnd",
+        queries = results + "hao6-clade.faa"
+    output:
+        results + "hao6-clade-all-vs-all-blast.tsv"
+    conda:
+        envs + "diamond.yaml"
+    threads:
+        12
+    shell:
+        """
+        diamond blastp \
+            --db {input.db} \
+            --query {input.queries} \
+            --max-target-seqs 2000 \
+            --outfmt 6 qseqid sseqid pident positive mismatch gapopen qlen slen length qstart qend sstart send evalue bitscore stitle full_sseq \
+            --very-sensitive \
+            --min-score 80 \
+            --out {output} \
+            --threads {threads} \
+        """
 
 rule backup:
     input:
         hao_onr_tree = results + "hao-onr.trimal.treefile",
-        tree_annotation = results + "hao-blast-annotation.tsv"
+        tree_annotation = results + "hao-onr-blast-annotation.tsv"
     output:
-        backup_dir + "hao-blast-annotation.tsv",
+        backup_dir + "hao-onr-blast-annotation.tsv",
         backup_dir + "hao-onr.trimal.treefile"
     params:
         backup_dir = backup_dir
