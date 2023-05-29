@@ -26,4 +26,4 @@ df.drop_duplicates(subset=["sseqid"], inplace=True)
 
 for i, row in df.iterrows():
     print(">" + row["stitle"])
-    print(row["full_sseq"].replace("*", "")) 
+    print(row["full_sseq"].replace("*", ""))

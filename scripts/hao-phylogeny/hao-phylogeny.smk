@@ -8,7 +8,6 @@ envs = "../envs/"
 # Path to backup location
 backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed-data/hao-phylogeny/"
 
-# Define genomes in the HQ-Dataset
 HQ_GENOMES = ["GCA_000949635.1_ASM94963v1",
     "GCA_002443295.1_ASM244329v1",
     "GCA_007860005.1_ASM786000v1",
@@ -17,6 +16,14 @@ HQ_GENOMES = ["GCA_000949635.1_ASM94963v1",
     "GCA_021650895.1_ASM2165089v1",
     "GCA_021650915.1_ASM2165091v1",
     "GCA_900232105.1_Kuenenia_stuttgartiensis_MBR1"]
+
+EXTENDED_GENOMES = glob_wildcards(data + "anammox-proteomes/{genome}_protein.faa").genome
+print(len(EXTENDED_GENOMES))
+EXTENDED_GENOMES = list(set(EXTENDED_GENOMES) - set(HQ_GENOMES))
+print(len(EXTENDED_GENOMES))
+
+
+# Define genomes in the HQ-Dataset
 
 rule all:
     input:
@@ -28,11 +35,16 @@ rule all:
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.fasttree",
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal.treefile",
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.trimal-gt05.treefile",
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.trimal-gt05.treefile",
         results + "hao-onr.trimal.treefile",
         results + "hao-onr-blast-annotation.tsv",
         results + "hao-onr-heme-clean-trimal.treefile",
         results + "hao-onr-heme-clean-trimal-gt05.treefile",
         results + "hao-hao_like.aln",
+
+        # Extended dataset
+        results + "hao-extended-anammox.tsv.gz",
+        results + "hao-extended-onr.aln",
 
         # HAO6 cladde
         results + "hao6-clade.aln",
@@ -160,7 +172,7 @@ rule extract_hq_hao_hits:
     output:
         results + "hao-hq-anammox.faa"
     shell:
-        "python extract-hq-hao.py {input} > {output}"
+        "python extract-anammox-hao.py {input} > {output}"
 
 rule extract_hao_gtdb_refseq:
     "Extract hits from search against GTDB"
@@ -240,6 +252,7 @@ rule align_after_long_branch_remove_1:
     shell:
         "mafft-linsi --thread {threads} {input} > {output}"
 
+# Test automated1 trimming
 rule trim_after_long_branch_remove:
     input:
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.aln",
@@ -274,6 +287,7 @@ rule iqtree:
     shell:
         "iqtree2 -s {input} -mset LG,WAG -B 1000 -alrt 1000 -nt {threads} -pre {params.pre} -redo"
 
+
 rule gap_trim_after_long_branch_remove:
     input:
         results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.aln",
@@ -297,6 +311,58 @@ rule gap_trim_iqtree:
         12
     shell:
         "iqtree2 -s {input} -mset LG,WAG -B 1000 -alrt 1000 -nt {threads} -pre {params.pre} -redo"
+
+# Test removing groups with additional hemes and use gap trimming to remove sites with more
+# than 50% gaps.
+
+rule hao_heme_clean:
+    input:
+        heme_clean = data + "hao-phylogeny/hao-onr-heme-filter.txt",
+        sequences = results + "hao-gtdb-refseq-hq-anammox.remove-long-branch.faa",
+    output:
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.faa",
+    conda:
+        envs + "biopython.yaml"
+    shell:
+        "python ../general/remove-taxa.py {input.sequences} {input.heme_clean} {output}"
+
+rule hao_heme_clean_align:
+    input:
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.faa",
+    output:
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.aln",
+    conda:
+        envs + "mafft.yaml"
+    threads:
+        12
+    shell:
+        "mafft-linsi --reorder --thread {threads} {input} > {output}"
+
+rule hao_heme_clean_gap_trimming:
+    input:
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.aln",
+    output:
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.trimal-gt05.aln",
+    conda:
+        envs + "trimal.yaml"
+    shell:
+        "trimal -gt 0.5 -in {input} -out {output}"
+
+rule hao_heme_clean_iqtree:
+    input:
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.trimal-gt05.aln",
+    output:
+        results + "hao-gtdb-refseq-hq-anammox.heme-clean.trimal-gt05.treefile",
+    params:
+        pre = results + "hao-gtdb-refseq-hq-anammox.heme-clean.trimal-gt05",
+    conda:
+        envs + "iqtree.yaml"
+    threads:
+        12
+    shell:
+        "iqtree2 -s {input} -mset LG,WAG -B 1000 -alrt 1000 -nt {threads} -pre {params.pre} -redo"
+
+
 """
 Using MAD-rooting it has been suggested that HAO/HDH/IhOCC forms a separate
 clade of Octaheme Cytochrome C proteins. Using this information we can root this
@@ -590,6 +656,73 @@ rule add_tree_annotation_column:
         envs + "biopython.yaml"
     shell:
         "python ../general/merge-blast-table-local-taxa.py {input.master} {input.local_taxonomy} {input.local_seq} {output}"
+
+# HAO-ONR-EXTENDED DATA
+rule extended_database:
+    "Create a Diamond database for the high-quality proteomes"
+    input:
+        expand(data + "anammox-proteomes/{extended}_protein.faa", extended=EXTENDED_GENOMES)
+    output:
+        results + "extended.dmnd"
+    conda:
+        envs + "diamond.yaml"
+    shell:
+        "cat {input} | diamond makedb --db {output} --in -"
+
+rule blast_extended_dataset:
+    "Search the anammox high-quality proteomes for HAO proteins"
+    input:
+        queries = results + "query.faa",
+        db = results + "extended.dmnd"
+    output:
+        results + "hao-extended-anammox.tsv.gz"
+    threads:
+        12
+    conda:
+        envs + "diamond.yaml"
+    shell:
+        """
+        diamond blastp \
+            --db {input.db} \
+            --query {input.queries} \
+            --max-target-seqs 2000 \
+            --outfmt 6 qseqid sseqid pident positive mismatch gapopen qlen slen length qstart qend sstart send evalue bitscore stitle full_sseq \
+            --very-sensitive \
+            --min-score 80 \
+            --out {output} \
+            --compress 1 \
+            --threads {threads} \
+        """
+
+rule extract_extended_hao_hits:
+    "Extract HAO-hits from extended proteomes."
+    input:
+        results + "hao-extended-anammox.tsv.gz"
+    output:
+        results + "hao-extended-anammox.faa"
+    shell:
+        "python extract-anammox-hao.py {input} > {output}"
+
+rule merge_extended_hq_hao_onr:
+    input:
+        extended = results + "hao-extended-anammox.faa",
+        hao_onr = results + "hao-onr.faa"
+    output:
+        results + "hao-extended-onr.faa"
+    shell:
+        "cat {input.extended} {input.hao_onr} > {output}"
+
+rule align_extended_hq_hao_onr:
+    input:
+        results + "hao-extended-onr.faa"
+    output:
+        results + "hao-extended-onr.aln"
+    conda:
+        envs + "mafft.yaml"
+    threads:
+        16
+    shell:
+        "mafft-linsi --reorder --thread {threads} {input} > {output}"
 
 rule extract_hao_hao_like_sequences:
     input:
