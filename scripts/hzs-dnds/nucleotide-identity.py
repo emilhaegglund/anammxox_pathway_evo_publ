@@ -24,7 +24,10 @@ for i, protein_id_i in enumerate(protein_ids):
         data["protein_id_i"].append(protein_id_i)
         data["protein_id_j"].append(protein_id_j)
         data["identical"].append(count)
-        data["pident"].append(count/aln_length)
+        if aln_length > 0:
+            data["pident"].append(count/aln_length)
+        else:
+            data["pident"].append(0)
 
 
 df = pd.DataFrame.from_dict(data)

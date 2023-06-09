@@ -31,7 +31,6 @@ sort_accession_order = [
     "GCA_002443295.1_ASM244329v1_protein.faa",
     "GCA_013112645.1_ASM1311264v1_protein.faa",
     "GCA_900232105.1_Kuenenia_stuttgartiensis_MBR1_protein.faa",
-    "GCA_011066545.1_ASM1106654v1_protein.faa",
     "GCA_021650915.1_ASM2165091v1_protein.faa",
     "GCA_017347445.1_ASM1734744v1_protein.faa",
     "GCA_000296795.1_ASM29679v1_protein.faa",

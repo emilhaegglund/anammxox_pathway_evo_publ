@@ -4,36 +4,37 @@ Workflow to perform Recombination and dN/dS analysis of the HZS
 results = "../../processed-data/hzs-dnds/"
 processed_data = "../../processed-data/"
 data = "../../data/"
-backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/hzs-dnds"
+envs = "../envs/"
+backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed-data/hzs-dnds/"
 
-HZS_SUBUNITS = ["hzs-a", "hzs-b", "hzs-c"]
+HZS_SUBUNITS = ["hzs_a", "hzs_b", "hzs_c"]
 
 rule all:
     input:
-        expand(backup_dir + "/hzs-recomb-dnds/{subunit}.nucleotide-identity.tsv", subunit=HZS_SUBUNITS),
-        expand(backup_dir + "/hzs-recomb-dnds/{subunit}-nucleotide-identity-heatmap.pdf", subunit=HZS_SUBUNITS),
-        expand(backup_dir + "/hzs-recomb-dnds/{subunit}-codeml/{subunit}.codeml.txt", subunit=HZS_SUBUNITS),
-        expand(backup_dir + "/hzs-recomb-dnds/{subunit}-codeml/{subunit}.codeml.filtered.txt", subunit=HZS_SUBUNITS),
-        expand(backup_dir + "/hzs-recomb-dnds/{subunit}-dnds-heatmap.pdf", subunit=HZS_SUBUNITS),
-        backup_dir + "/hzs-recomb-dnds/hzs-dnds-violin.svg",
+        expand(backup_dir + "{subunit}-nucleotide-identity.tsv", subunit=HZS_SUBUNITS),
+        expand(backup_dir + "{subunit}-nucleotide-identity-heatmap.pdf", subunit=HZS_SUBUNITS),
+        expand(backup_dir + "{subunit}-codeml/{subunit}.codeml.txt", subunit=HZS_SUBUNITS),
+        expand(backup_dir + "{subunit}-codeml/{subunit}.codeml.filtered.txt", subunit=HZS_SUBUNITS),
+        expand(backup_dir + "{subunit}-dnds-heatmap.pdf", subunit=HZS_SUBUNITS),
+        backup_dir + "hzs-dnds-violin.svg",
 
 # Analysis of HZS Alpha subunit
 rule extract_nucleotide_sequences_hzs_a:
     input:
-        sequences = processed_data + "hzs-operon-phylogenies/sequences/OG0000255.fa",
+        sequences = processed_data + "hzs-operon-phylogenies/sequences/OG0000271.fa",
         genes = data + "anammox-genes/"
     output:
-        results + "hzs-a.fna"
+        results + "hzs_a.fna"
     conda:
         envs + "biopython.yaml"
     shell:
-        "python get-nucleotides.py {input.sequences} {input.genes} {output}"
+        "python ../general/get-nucleotides.py {input.sequences} {input.genes} {output}"
 
 rule copy_hzs_a_alignment:
     input:
-        processed_data + "hzs-operon-phylogenies/alignments/OG0000255.aln"
+        processed_data + "hzs-operon-phylogenies/alignments/OG0000271.aln"
     output:
-        results + "hzs-a.aln"
+        results + "hzs_a.aln"
     shell:
         "cp {input} {output}"
 
@@ -59,10 +60,10 @@ rule cut_hzs_bc_protein:
 
 rule cut_hzs_bc_nucleotide:
     input:
-       "../data/anammox-genes/GCA_002443295.1_ASM244329v1_cds_from_genomic.fna"
+       data + "anammox-genes/GCA_002443295.1_ASM244329v1_cds_from_genomic.fna"
     output:
-        hzs_b = "../processed_data/hzs-recomb-dnds/scalindua-hzs-b.fna",
-        hzs_c = "../processed_data/hzs-recomb-dnds/scalindua-hzs-c.fna"
+        hzs_b = results + "scalindua-hzs_b.fna",
+        hzs_c = results + "scalindua-hzs_c.fna"
     conda:
         envs + "biopython.yaml"
     shell:
@@ -71,7 +72,7 @@ rule cut_hzs_bc_nucleotide:
 # Prepare HZS-B sequences for CodeML
 rule remove_scalindua_hzs_b_orthogroup:
     input:
-        processed_data + "hzs-operon-phylogenies/sequences/OG0000174.fa"
+        processed_data + "hzs-operon-phylogenies/sequences/OG0000182.fa"
     output:
         results + "hzs_b-wo-scalindua.faa"
     conda:
@@ -101,14 +102,14 @@ rule align_hzs_b:
 
 rule extract_nucleotide_sequences_hzs_b:
     input:
-        sequences = "../processed_data/hzs-recomb-dnds/hzs-b.wo_scalindua.faa",
+        sequences = results + "hzs_b-wo-scalindua.faa",
         genes = data + "anammox-genes"
     output:
         results + "hzs_b-wo-scalindua.fna"
     conda:
         envs + "biopython.yaml"
     shell:
-        "python get-nucleotides.py {input.sequences} {input.genes} {output}"
+        "python ../general/get-nucleotides.py {input.sequences} {input.genes} {output}"
 
 rule merge_hzs_b_nucleotides:
     input:
@@ -122,7 +123,7 @@ rule merge_hzs_b_nucleotides:
 # Prepare HZS-C sequences for CodeML
 rule remove_scalindua_hzs_c_orthogroup:
     input:
-        processed_data = "hzs-operon-phylogenies/sequences/OG0000132.fa"
+        processed_data + "hzs-operon-phylogenies/sequences/OG0000124.fa"
     output:
         results + "hzs_c-wo-scalindua.faa"
     conda:
@@ -158,7 +159,7 @@ rule extract_nucleotide_sequences_hzs_c:
     conda:
         envs + "biopython.yaml"
     shell:
-        "python get-nucleotides.py {input.sequences} {input.genes} {output}"
+        "python ../general/get-nucleotides.py {input.sequences} {input.genes} {output}"
 
 rule merge_hzs_c_nucleotides:
     input:
@@ -178,15 +179,25 @@ rule backtranslate_aa_alignment:
         nucleotides = results + "{subunit}.fna",
         protein_alignment = results + "{subunit}.aln"
     output:
-        results + "{subunit}-codon.aln"
+        results + "{subunit}-codon-raw.aln"
     conda:
         envs + "pal2nal.yaml"
     shell:
         "pal2nal.pl {input.protein_alignment} {input.nucleotides} -output fasta > {output}"
 
+rule clean_codon_alignment:
+    input:
+        protein_alignment = results + "{subunit}-codon-raw.aln"
+    output:
+        protein_alignment = results + "{subunit}-codon.aln"
+    conda:
+        envs + "biopython.yaml"
+    shell:
+        "python fix-TWU5.py {input} {output}"
+
 rule codeml:
     input:
-        control_file = data + "hzs-recomb-dnds/{subunit}.codeml.ctl",
+        control_file = data + "hzs-dnds/{subunit}.codeml.ctl",
         codon_alignment = results + "{subunit}-codon.aln"
     output:
         results + "{subunit}-codeml/{subunit}.codeml.txt"
@@ -208,23 +219,22 @@ rule parse_codeml:
     output:
         results + "{subunit}-codeml/{subunit}.codeml.filtered.txt"
     shell:
-        "python parse-codeml-output.py {input} > {output}"
+        "python ../general/parse-codeml-output.py {input} > {output}"
 
 rule codeml_violin_plot:
     input:
-        hzs_b = results + "hzs-b-codeml/hzs-b.codeml.filtered.txt",
-        hzs_c = results + "hzs-c-codeml/hzs-c.codeml.filtered.txt",
-        hzs_a = results + "hzs-a-codeml/hzs-a.codeml.filtered.txt",
-        #hdh="../processed_data/hdh-dnds/hdh-codeml/hdh.codeml.filtered.txt",
+        hzs_b = results + "hzs_b-codeml/hzs_b.codeml.filtered.txt",
+        hzs_c = results + "hzs_c-codeml/hzs_c.codeml.filtered.txt",
+        hzs_a = results + "hzs_a-codeml/hzs_a.codeml.filtered.txt",
     output:
-        rersults + "hzs-dnds-violin.svg"
+        results + "hzs-dnds-violin.svg"
     shell:
         "python codeml-violin-plot.py {input.hzs_b} {input.hzs_c} {input.hzs_a} {output}"
 
 rule codeml_heatmap:
     input:
         dnds_data = results + "{subunit}-codeml/{subunit}.codeml.filtered.txt",
-        proteomes = data + "anammox-proteomes/"
+        proteomes = data + "anammox-proteomes/",
         genome_metadata = data + "anammox_rpoB_subset_names.221206.tsv"
     output:
         results + "{subunit}-dnds-heatmap.pdf"
@@ -238,7 +248,7 @@ rule calculate_nucleotide_identity:
     Calculate the nucleotide identity for the pairs.
     """
     input:
-        results + "hzs-recomb-dnds/{subunit}-codon.aln"
+        results + "{subunit}-codon.aln"
     output:
         results + "{subunit}-nucleotide-identity.tsv"
     conda:
