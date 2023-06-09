@@ -1,5 +1,5 @@
-seqfile = ../hzs-a.codon.aln   * sequence data filename
-outfile = hzs-a.codeml.txt   * main result file name
+seqfile = ../hzs_a-codon.aln   * sequence data filename
+outfile = hzs_a.codeml.txt   * main result file name
 noisy = 0      * 0,1,2,3,9: how much rubbish on the screen
 verbose = 0      * 1:detailed output
 runmode = -2     * -2:pairwise

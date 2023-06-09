@@ -1,5 +1,5 @@
-seqfile = ../hzs-c.codon.aln   * sequence data filename
-outfile = hzs-c.codeml.txt   * main result file name
+seqfile = ../hzs_c-codon.aln   * sequence data filename
+outfile = hzs_c.codeml.txt   * main result file name
 *treefile = ../../hzs-operon-phylogenies/phylogenies/OG0000255.operon.treefile
 noisy = 0      * 0,1,2,3,9: how much rubbish on the screen
 verbose = 0      * 1:detailed output
