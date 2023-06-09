@@ -1,24 +1,24 @@
 
-# Backup results
 results = "../../processed-data/rpoB-phylogeny/"
 data = "../../data/rpoB-phylogeny/"
-backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed_data/rpoB-phylogeny/"
+backup_dir = "/media/argos-emiha442/emiha442/1_projects/1_221123_anammox_pathway_evo/processed-data/rpoB-phylogeny/"
 envs = "../envs/"
 
 rule all:
     input:
         #"../processed_data/rpoB-phylogeny/anammox-all-rpoB/anammox-all-rpoB.trimal.initial.treefile",
-        expand(results + "anammox-all-rpoB/anammox-all-rpoB.{cleaning}.trimal.treefile", cleaning=["wo_sporious_taxa", "wo_long_branches"]),
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.trimal.treefile",
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.trimal.treefile",
-        results + "rpoB-tree-annnotation.tsv",
+        expand(results + "anammox-all-rpoB/anammox-pvc-outgroup-rpoB.{cleaning}.trimal.treefile", cleaning=["wo-sporious-taxa", "wo-long-branches"]),
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal.treefile",
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal.treefile",
+        results + "rpoB-tree-annotation.tsv",
 
         # Comment out following lines if backup not needed
         #backup_dir + "anammox-all-rpoB/anammox-all-rpoB.trimal.initial.treefile",
-        expand(backup_dir + "anammox-all-rpoB/anammox-all-rpoB.{cleaning}.trimal.treefile", cleaning=["wo_sporious_taxa", "wo_long_branches"]),
-        backup_dir + "anammox-extended-rpoB/anammox-extended-rpoB.trimal.treefile",
-        backup_dir + "anammox-hq-rpoB/anammox-hq-rpoB.trimal.treefile",
-        backup_dir + "rpoB_tree_annnotation.tsv"
+        expand(backup_dir + "anammox-all-rpoB/anammox-pvc-outgroup-rpoB.{cleaning}.trimal.treefile", cleaning=["wo-sporious-taxa", "wo-long-branches"]),
+        backup_dir + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal.treefile",
+        backup_dir + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal.treefile",
+        backup_dir + "rpoB-tree-annotation.tsv",
+        backup_dir + "supplementary-table-1-original.tsv"
 
 #### Create initial rpoB phylogeny ####
 rule download_all_anammox_metadata:
@@ -54,7 +54,7 @@ rule extract_gtdb_brocadia:
     output:
         results + "anammox-gtdb-taxonomy.tsv"
     shell:
-        "python ectract-brocadia-from-gtdb.py {input} {output}"
+        "python extract-brocadia-from-gtdb.py {input} {output}"
 
 rule merge_ncbi_gtdb_anammox_accessions:
     """Merge the taxa present under Candidatus Brocadiia in NCBI and under Brocadiae in GTDB"""
@@ -125,16 +125,16 @@ def ncbi_proteomes(wildcards):
 rule prokka:
     """ Run Prokka on assemblies without annotation """
     input:
-        fasta=results + "assembly_data/ncbi_dataset/data/{assembly_accession}/{full_accession}.fna"
+        fasta=results + "assembly-data/ncbi_dataset/data/{assembly_accession}/{full_accession}.fna"
     output:
         results + "prokka/{assembly_accession}/{full_accession}.faa"
     params:
         prefix="{full_accession}",
         outdir=results + "prokka/{assembly_accession}"
     threads:
-        6
+        32
     conda:
-        reuslts + "prokka.yaml"
+        "../envs/prokka.yaml"
     shell:
         """
         prokka --outdir {params.outdir} --prefix {params.prefix} --cpus {threads} {input} --force
@@ -146,7 +146,7 @@ rule merge_proteomes:
         ncbi=ncbi_proteomes,
         prokka=genomes_to_annotate
     output:
-        temp(results + "proteomes.faa")
+        results + "proteomes.faa"
     shell:
         "cat {input.ncbi} {input.prokka} > {output}"
 
@@ -212,24 +212,23 @@ rule extract_rpoB:
             {output.summary}
         """
 
-rule dowload_ecoli_rpob:
+rule download_ecoli_rpob:
     output:
-        "../processed_data/rpoB-phylogeny/outgroup-rpoB/ecoli.faa"
+        results + "outgroup-rpoB/ecoli.faa"
     shell:
         "wget -O {output} https://rest.uniprot.org/uniprotkb/P0A8V2.fasta"
 
-rule dowload_bsubtilis_rpob:
+rule download_bsubtilis_rpob:
     output:
-        "../processed_data/rpoB-phylogeny/outgroup-rpoB/bsubtilis.faa"
+        results + "outgroup-rpoB/bsubtilis.faa"
     shell:
         "wget -O {output} https://rest.uniprot.org/uniprotkb/P37870.fasta"
-
 
 rule merge_pvc_and_outgroup:
     input:
         pvc = results + "anammox-all-rpoB/all-assemblies-rpoB.faa",
         ecoli = results + "outgroup-rpoB/ecoli.faa",
-        bsubtilis = "outgroup-rpoB/bsubtilis.faa"
+        bsubtilis = results + "outgroup-rpoB/bsubtilis.faa"
     output:
         results + "anammox-all-rpoB/anammox-pvc-outgroup-rpoB.faa"
     shell:
@@ -361,11 +360,21 @@ rule extended_dataset_extract_rpoB:
     shell:
         "python extract-subset.py {input.extended_accessions} {input.pvc_accessions} {input.outgroup_accessions} {input.proteins} {output}"
 
+rule add_ecoli_bsubtilis_to_extended:
+    input:
+        pvc = results + "anammox-extended-rpoB/anammox-extended-rpoB.faa",
+        ecoli = results + "outgroup-rpoB/ecoli.faa",
+        bsubtilis = results + "outgroup-rpoB/bsubtilis.faa"
+    output:
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.faa"
+    shell:
+        "cat {input.pvc} {input.ecoli} {input.bsubtilis} > {output}"
+
 rule extended_dataset_align:
     input:
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.faa"
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.faa"
     output:
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.aln"
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.aln"
     conda:
         envs + "mafft.yaml"
     threads:
@@ -376,9 +385,9 @@ rule extended_dataset_align:
 rule extended_dataset_trim:
     """ Trim the alignment """
     input:
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.aln"
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.aln"
     output:
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.trimal.aln"
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal.aln"
     conda:
         envs + "trimal.yaml"
     shell:
@@ -387,11 +396,11 @@ rule extended_dataset_trim:
 rule extended_dataset_phylogeny:
     """ Calculate a new phylogeny based on the cleaned RpoB sequences """
     input:
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.trimal.aln"
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal.aln"
     output:
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.trimal.treefile"
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal.treefile"
     params:
-        pre = results + "anammox-extended-rpoB/anammox-extended-rpoB.trimal"
+        pre = results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal"
     conda:
         envs + "iqtree.yaml"
     threads:
@@ -420,11 +429,21 @@ rule high_quality_dataset_extract_rpoB:
     shell:
         "python extract-subset.py {input.extended_accessions} {input.pvc_accessions} {input.outgroup_accessions} {input.proteins} {output}"
 
+rule add_ecoli_bsubtilis_to_hq:
+    input:
+        pvc = results + "anammox-hq-rpoB/anammox-hq-rpoB.faa",
+        ecoli = results + "outgroup-rpoB/ecoli.faa",
+        bsubtilis = results + "outgroup-rpoB/bsubtilis.faa"
+    output:
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.faa"
+    shell:
+        "cat {input.pvc} {input.ecoli} {input.bsubtilis} > {output}"
+
 rule high_quality_dataset_align:
     input:
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.faa"
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.faa"
     output:
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.aln"
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.aln"
     conda:
         envs + "mafft.yaml"
     threads:
@@ -435,9 +454,9 @@ rule high_quality_dataset_align:
 rule high_quality_dataset_trim:
     """ Trim the alignment """
     input:
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.aln"
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.aln"
     output:
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.trimal.aln"
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal.aln"
     conda:
         envs + "trimal.yaml"
     shell:
@@ -446,11 +465,11 @@ rule high_quality_dataset_trim:
 rule high_quality_dataset_phylogeny:
     """ Calculate a new phylogeny based on the cleaned RpoB sequences """
     input:
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.trimal.aln"
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal.aln"
     output:
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.trimal.treefile"
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal.treefile"
     params:
-        pre = results + "anammox-hq-rpoB/anammox-hq-rpoB.trimal"
+        pre = results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal"
     conda:
         envs + "iqtree.yaml"
     threads:
@@ -481,39 +500,57 @@ rule fix_tree_annotation_data:
     input:
         results + "all-assemblies-metadata.tsv"
     output:
-        results + "rpoB-tree-annnotation.tsv"
+        results + "rpoB-tree-annotation.tsv"
     shell:
         "python fix-tree-annotation.py {input} {output}"
 
-#rule create_supplementary_table_1_2_3:
-#    input:
-#        metadata="../processed_data/rpoB-phylogeny/all_assemblies.metadata.tsv",
-#        prokka_dir="../processed_data/rpoB-phylogeny/prokka/",
-#        ncbi="../processed_data/rpoB-phylogeny/anammox.ncbi_taxonomy.tsv",
-#        gtdb="../processed_data/rpoB-phylogeny/anammox.gtdb_taxonomy.tsv",
-#        rpoB_data="../processed_data/rpoB-phylogeny/rpoB.summary.tsv",
-#    output:
-#        table_1=
-#        table_2=
-#        table_3=
-#    shell:
-#        """
-#        python rpoB_create_tables.py {input.metadata} \
-#            {input.ncbi} \
-#            {input.gtdb} \
-#            {input.prokka_dir} \
-#            {input.rpoB_data} \
-#            {output.table_1} \
-#            {output.table_2} \
-#            {output.table_3} \
-#        """
+rule create_supplementary_table_1:
+    input:
+        metadata = results + "all-assemblies-metadata.tsv",
+        ncbi = results + "anammox-ncbi-taxonomy.tsv",
+        gtdb = results + "anammox-gtdb-taxonomy.tsv",
+        prokka_dir = results + "prokka/",
+        rpoB_summary = results + "all-assemblies-rpoB-summary.tsv",
+        pvc_accessions = data + "pvc-accessions.txt",
+        extended_dataset = data + "anammox-extended-dataset.txt",
+        hq_dataset = data + "anammox-hq-dataset.txt",
+        pvc_subset = data + "pvc-subset-accessions.txt",
+        rpoB_all = results + "anammox-all-rpoB/anammox-pvc-outgroup-rpoB.wo-long-branches.trimal.aln",
+        rpoB_cleaned = results + "anammox-all-rpoB/anammox-pvc-outgroup-rpoB.wo-sporious-taxa.trimal.aln"
+    output:
+        results + "supplementary-table-1-original.tsv"
+    conda:
+        envs + "biopython.yaml"
+    shell:
+        """
+        python create-tables.py {input.metadata} \
+            {input.ncbi} \
+            {input.gtdb} \
+            {input.prokka_dir} \
+            {input.rpoB_summary} \
+            {input.pvc_accessions} \
+            {input.extended_dataset} \
+            {input.hq_dataset} \
+            {input.pvc_subset} \
+            {input.rpoB_all} \
+            {input.rpoB_cleaned} \
+            {output}
+        """
 
 # Backup results
 rule backup_tree_annotation:
     input:
-        results + "rpoB-tree-annnotation.tsv"
+        results + "rpoB-tree-annotation.tsv"
     output:
-        backup_dir + "rpoB-tree-annnotation.tsv"
+        backup_dir + "rpoB-tree-annotation.tsv"
+    shell:
+        "cp {input} {output}"
+
+rule backup_table:
+    input:
+        results + "supplementary-table-1-original.tsv"
+    output:
+        backup_dir + "supplementary-table-1-original.tsv"
     shell:
         "cp {input} {output}"
 
@@ -535,16 +572,16 @@ rule backup_all_dataset_cleaned_phylogeny:
 
 rule backup_hq_dataset_phylogeny:
     input:
-        results + "anammox-hq-rpoB/anammox-hq-rpoB.trimal.treefile"
+        results + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal.treefile"
     output:
-        backup_dir + "anammox-hq-rpoB/anammox-hq-rpoB.trimal.treefile"
+        backup_dir + "anammox-hq-rpoB/anammox-hq-outgroup-rpoB.trimal.treefile"
     shell:
         "cp {input} {output}"
 
 rule backup_extended_dataset_phylogeny:
     input:
-        results + "anammox-extended-rpoB/anammox-extended-rpoB.trimal.treefile"
+        results + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal.treefile"
     output:
-        backup_dir + "anammox-extended-rpoB/anammox-extended-rpoB.trimal.treefile"
+        backup_dir + "anammox-extended-rpoB/anammox-extended-outgroup-rpoB.trimal.treefile"
     shell:
         "cp {input} {output}"
